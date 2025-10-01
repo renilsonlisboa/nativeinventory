@@ -101,7 +101,7 @@ class ImportService {
         }
 
         // Registrar parcela processada
-        final chaveParcela = '${dados['bloco']}-${dados['faixa']}-${dados['parcela']}';
+        final chaveParcela = '${dados['bloco']}-${dados['parcela']}-${dados['faixa']}';
         if (!parcelasProcessadas.contains(chaveParcela)) {
           parcelasProcessadas.add(chaveParcela);
           parcelasAfetadas++;
@@ -207,7 +207,7 @@ class ImportService {
     final parcelaExistente = await db.rawQuery('''
       SELECT id FROM parcelas 
       WHERE inventario_id = ? AND bloco = ? AND faixa = ? AND parcela = ?
-    ''', [inventarioId, dados['bloco'], dados['faixa'], dados['parcela']]);
+    ''', [inventarioId, dados['bloco'], dados['parcela'], dados['faixa']]);
 
     if (parcelaExistente.isNotEmpty) {
       return parcelaExistente.first['id'] as int;
@@ -217,8 +217,8 @@ class ImportService {
     final novaParcelaId = await db.insert('parcelas', {
       'inventario_id': inventarioId,
       'bloco': dados['bloco'],
-      'faixa': dados['faixa'],
       'parcela': dados['parcela'],
+      'faixa': dados['faixa'],
       'concluida': 0,
     });
 

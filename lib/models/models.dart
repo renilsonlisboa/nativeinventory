@@ -2,16 +2,16 @@ class Inventario {
   int? id;
   String nome;
   int numeroBlocos;
-  int numeroFaixas;
   int numeroParcelas;
+  int numeroFaixas;
   DateTime dataCriacao;
 
   Inventario({
     this.id,
     required this.nome,
     required this.numeroBlocos,
-    required this.numeroFaixas,
     required this.numeroParcelas,
+    required this.numeroFaixas,
     required this.dataCriacao,
   });
 
@@ -20,8 +20,8 @@ class Inventario {
       'id': id,
       'nome': nome,
       'numero_blocos': numeroBlocos,
-      'numero_faixas': numeroFaixas,
       'numero_parcelas': numeroParcelas,
+      'numero_faixas': numeroFaixas,
       'data_criacao': dataCriacao.toIso8601String(),
     };
   }
@@ -31,8 +31,8 @@ class Inventario {
       id: map['id'],
       nome: map['nome'],
       numeroBlocos: map['numero_blocos'],
-      numeroFaixas: map['numero_faixas'],
       numeroParcelas: map['numero_parcelas'],
+      numeroFaixas: map['numero_faixas'],
       dataCriacao: DateTime.parse(map['data_criacao']),
     );
   }

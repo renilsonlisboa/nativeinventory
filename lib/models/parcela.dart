@@ -2,8 +2,8 @@ class Parcela {
   int? id;
   int inventarioId;
   int bloco;
-  int faixa;
   int parcela;
+  int faixa;
   String? valorArvores;
   bool concluida;
 
@@ -11,8 +11,8 @@ class Parcela {
     this.id,
     required this.inventarioId,
     required this.bloco,
-    required this.faixa,
     required this.parcela,
+    required this.faixa,
     this.valorArvores,
     this.concluida = false,
   });
@@ -22,8 +22,8 @@ class Parcela {
       'id': id,
       'inventario_id': inventarioId,
       'bloco': bloco,
-      'faixa': faixa,
       'parcela': parcela,
+      'faixa': faixa,
       'valor_arvores': valorArvores,
       'concluida': concluida ? 1 : 0,
     };
@@ -34,22 +34,21 @@ class Parcela {
       id: map['id'],
       inventarioId: map['inventario_id'],
       bloco: map['bloco'],
-      faixa: map['faixa'],
       parcela: map['parcela'],
+      faixa: map['faixa'],
       valorArvores: map['valor_arvores'],
       concluida: map['concluida'] == 1,
     );
   }
 
-  String get identificador => 'B${bloco}F${faixa}P${parcela}';
+  String get identificador => 'B${bloco}P${parcela}F${faixa}';
 
-  // ADICIONE ESTE MÉTODO copyWith
   Parcela copyWith({
     int? id,
     int? inventarioId,
     int? bloco,
-    int? faixa,
     int? parcela,
+    int? faixa,
     String? valorArvores,
     bool? concluida,
   }) {
@@ -57,8 +56,8 @@ class Parcela {
       id: id ?? this.id,
       inventarioId: inventarioId ?? this.inventarioId,
       bloco: bloco ?? this.bloco,
-      faixa: faixa ?? this.faixa,
       parcela: parcela ?? this.parcela,
+      faixa: faixa ?? this.faixa,
       valorArvores: valorArvores ?? this.valorArvores,
       concluida: concluida ?? this.concluida,
     );

@@ -20,8 +20,8 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
 
   // Filtros
   int? _filtroBloco;
-  int? _filtroFaixa;
   int? _filtroParcela;
+  int? _filtroFaixa;
 
   @override
   void initState() {
@@ -36,9 +36,21 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
 
     try {
       final parcelas = await DatabaseHelper().getParcelasByInventario(widget.inventarioId);
+
+      // Ordenar as parcelas por Bloco → Parcela → Faixa
+      parcelas.sort((a, b) {
+        if (a.bloco != b.bloco) {
+          return a.bloco.compareTo(b.bloco);
+        }
+        if (a.parcela != b.parcela) {
+          return a.parcela.compareTo(b.parcela);
+        }
+        return a.faixa.compareTo(b.faixa);
+      });
+
       setState(() {
         _todasParcelas = parcelas;
-        _parcelasFiltradas = parcelas; // Inicialmente mostra todas
+        _parcelasFiltradas = parcelas;
         _carregando = false;
       });
     } catch (e) {
@@ -55,13 +67,24 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
       resultado = resultado.where((parcela) => parcela.bloco == _filtroBloco).toList();
     }
 
+    if (_filtroParcela != null) {
+      resultado = resultado.where((parcela) => parcela.parcela == _filtroParcela).toList();
+    }
+
     if (_filtroFaixa != null) {
       resultado = resultado.where((parcela) => parcela.faixa == _filtroFaixa).toList();
     }
 
-    if (_filtroParcela != null) {
-      resultado = resultado.where((parcela) => parcela.parcela == _filtroParcela).toList();
-    }
+    // Manter a ordenação mesmo após aplicar filtros
+    resultado.sort((a, b) {
+      if (a.bloco != b.bloco) {
+        return a.bloco.compareTo(b.bloco);
+      }
+      if (a.parcela != b.parcela) {
+        return a.parcela.compareTo(b.parcela);
+      }
+      return a.faixa.compareTo(b.faixa);
+    });
 
     setState(() {
       _parcelasFiltradas = resultado;
@@ -71,8 +94,8 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
   void _limparFiltros() {
     setState(() {
       _filtroBloco = null;
-      _filtroFaixa = null;
       _filtroParcela = null;
+      _filtroFaixa = null;
       _parcelasFiltradas = _todasParcelas;
     });
   }
@@ -81,7 +104,6 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
     _carregarParcelas();
   }
 
-  // Método auxiliar para obter valores únicos
   List<int> _obterValoresUnicos(List<Parcela> parcelas, int Function(Parcela) seletor) {
     return parcelas.map(seletor).toSet().toList()..sort();
   }
@@ -104,8 +126,8 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
     }
 
     final blocosUnicos = _obterValoresUnicos(_todasParcelas, (p) => p.bloco);
-    final faixasUnicas = _obterValoresUnicos(_todasParcelas, (p) => p.faixa);
     final parcelasUnicas = _obterValoresUnicos(_todasParcelas, (p) => p.parcela);
+    final faixasUnicas = _obterValoresUnicos(_todasParcelas, (p) => p.faixa);
 
     return Card(
       margin: EdgeInsets.all(8),
@@ -123,7 +145,6 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
             LayoutBuilder(
               builder: (context, constraints) {
                 if (constraints.maxWidth > 600) {
-                  // Layout para telas largas (horizontal)
                   return Row(
                     children: [
                       Expanded(
@@ -131,11 +152,11 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
                       ),
                       SizedBox(width: 16),
                       Expanded(
-                        child: _buildDropdownFaixa(faixasUnicas),
+                        child: _buildDropdownParcela(parcelasUnicas),
                       ),
                       SizedBox(width: 16),
                       Expanded(
-                        child: _buildDropdownParcela(parcelasUnicas),
+                        child: _buildDropdownFaixa(faixasUnicas),
                       ),
                     ],
                   );
@@ -145,9 +166,9 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
                     children: [
                       _buildDropdownBloco(blocosUnicos),
                       SizedBox(height: 16),
-                      _buildDropdownFaixa(faixasUnicas),
-                      SizedBox(height: 16),
                       _buildDropdownParcela(parcelasUnicas),
+                      SizedBox(height: 16),
+                      _buildDropdownFaixa(faixasUnicas),
                     ],
                   );
                 }
@@ -174,6 +195,7 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
                     onPressed: _limparFiltros,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
                       padding: EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
@@ -220,35 +242,6 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
     );
   }
 
-  Widget _buildDropdownFaixa(List<int> faixasUnicas) {
-    return DropdownButtonFormField<int>(
-      value: _filtroFaixa,
-      decoration: InputDecoration(
-        labelText: 'Faixa',
-        border: OutlineInputBorder(),
-        isDense: true,
-      ),
-      items: [
-        DropdownMenuItem(
-          value: null,
-          child: Text('Todas as faixas'),
-        ),
-        ...faixasUnicas.map((faixa) {
-          return DropdownMenuItem(
-            value: faixa,
-            child: Text('Faixa $faixa'),
-          );
-        }).toList(),
-      ],
-      onChanged: (value) {
-        setState(() {
-          _filtroFaixa = value;
-        });
-        _aplicarFiltros();
-      },
-    );
-  }
-
   Widget _buildDropdownParcela(List<int> parcelasUnicas) {
     return DropdownButtonFormField<int>(
       value: _filtroParcela,
@@ -272,6 +265,35 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
       onChanged: (value) {
         setState(() {
           _filtroParcela = value;
+        });
+        _aplicarFiltros();
+      },
+    );
+  }
+
+  Widget _buildDropdownFaixa(List<int> faixasUnicas) {
+    return DropdownButtonFormField<int>(
+      value: _filtroFaixa,
+      decoration: InputDecoration(
+        labelText: 'Faixa',
+        border: OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: [
+        DropdownMenuItem(
+          value: null,
+          child: Text('Todas as faixas'),
+        ),
+        ...faixasUnicas.map((faixa) {
+          return DropdownMenuItem(
+            value: faixa,
+            child: Text('Faixa $faixa'),
+          );
+        }).toList(),
+      ],
+      onChanged: (value) {
+        setState(() {
+          _filtroFaixa = value;
         });
         _aplicarFiltros();
       },
@@ -391,7 +413,6 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
             ),
           ],
         ),
-        // CORREÇÃO: Permitir clique em qualquer lugar da linha para abrir a tabela
         onTap: () => _abrirTabelaArvores(parcela),
       ),
     );

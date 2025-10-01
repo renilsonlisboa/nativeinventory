@@ -13,8 +13,8 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nomeController = TextEditingController();
   final _blocosController = TextEditingController();
-  final _faixasController = TextEditingController();
   final _parcelasController = TextEditingController();
+  final _faixasController = TextEditingController();
   final _dapMinimoController = TextEditingController(text: '10.0'); // Valor padrão
 
   Future<void> _criarInventario() async {
@@ -22,8 +22,8 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
       final inventario = Inventario(
         nome: _nomeController.text,
         numeroBlocos: int.parse(_blocosController.text),
-        numeroFaixas: int.parse(_faixasController.text),
         numeroParcelas: int.parse(_parcelasController.text),
+        numeroFaixas: int.parse(_faixasController.text),
         dapMinimo: double.parse(_dapMinimoController.text), // NOVO
         dataCriacao: DateTime.now(),
       );
@@ -34,13 +34,13 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
       // Gerar combinações de parcelas
       final parcelas = <Parcela>[];
       for (int bloco = 1; bloco <= inventario.numeroBlocos; bloco++) {
-        for (int faixa = 1; faixa <= inventario.numeroFaixas; faixa++) {
-          for (int parcelaNum = 1; parcelaNum <= inventario.numeroParcelas; parcelaNum++) {
+        for (int parcelaNum = 1; parcelaNum <= inventario.numeroParcelas; parcelaNum++) {
+          for (int faixa = 1; faixa <= inventario.numeroFaixas; faixa++) {
             parcelas.add(Parcela(
               inventarioId: inventarioId,
               bloco: bloco,
-              faixa: faixa,
               parcela: parcelaNum,
+              faixa: faixa,
             ));
           }
         }
@@ -104,24 +104,6 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
               ),
               SizedBox(height: 16),
               TextFormField(
-                controller: _faixasController,
-                decoration: InputDecoration(
-                  labelText: 'Número de Faixas',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o número de faixas';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Por favor, insira um número válido';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
                 controller: _parcelasController,
                 decoration: InputDecoration(
                   labelText: 'Número de Parcelas',
@@ -131,6 +113,24 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Por favor, insira o número de parcelas';
+                  }
+                  if (int.tryParse(value) == null) {
+                    return 'Por favor, insira um número válido';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 16),
+              TextFormField(
+                controller: _faixasController,
+                decoration: InputDecoration(
+                  labelText: 'Número de Faixas',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Por favor, insira o número de faixas';
                   }
                   if (int.tryParse(value) == null) {
                     return 'Por favor, insira um número válido';

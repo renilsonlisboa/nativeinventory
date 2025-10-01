@@ -15,7 +15,7 @@ class TelaInicial extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              'assets/image/forest_icon.png',
+              'assets/images/forest_icon.png',
               height: 150,
               width: 150,
             ),
