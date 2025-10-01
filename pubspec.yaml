@@ -1,0 +1,32 @@
+name: nativeninventory
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.2.8
+  path: ^1.8.3
+  csv: ^5.0.3
+  excel: ^2.0.1
+  share_plus: ^7.0.2
+  path_provider: ^2.1.1
+  file_picker: ^9.0.0
+  permission_handler: ^11.0.0
+  device_info_plus: ^9.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+    - assets/csv/dados.csv
