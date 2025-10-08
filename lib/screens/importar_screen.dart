@@ -28,7 +28,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
   final TextEditingController _filePathController = TextEditingController();
   String? _fileName;
   File? _selectedFile;
-  int? _selectedYear;
   bool _isImporting = false;
   bool _isValidatingFile = false;
   String? _message;
@@ -230,15 +229,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
       return;
     }
 
-    if (_selectedYear == null) {
-      setState(() {
-        _message = 'Selecione o ano de referência para o CAP.';
-        _success = false;
-      });
-      return;
-    }
-
-    // Verificar se o arquivo ainda existe
     if (!await _selectedFile!.exists()) {
       setState(() {
         _message = 'Arquivo não encontrado. O arquivo pode ter sido movido ou excluído.';
@@ -256,14 +246,17 @@ class _ImportarScreenState extends State<ImportarScreen> {
 
     _adicionarLog('=== INICIANDO IMPORTACAO ===');
     _adicionarLog('Inventário: ${widget.nomeInventario} (ID: ${widget.inventarioId})');
-    _adicionarLog('Ano de referência: $_selectedYear');
     _adicionarLog('Arquivo: $_fileName');
+    _adicionarLog('Modo: Importação automática de todas as colunas de CAP');
 
     try {
+      // CORREÇÃO: Adicionar o parâmetro 'ano' obrigatório
+      // Como estamos importando todos os anos, podemos usar um valor padrão como 0
+      // ou o ano atual, mas o serviço deve ignorar isso quando detectar múltiplos anos
       final config = ImportacaoConfig(
         inventarioId: widget.inventarioId,
-        ano: _selectedYear!,
         nomeInventario: widget.nomeInventario,
+        ano: DateTime.now().year, // Adicionando o parâmetro obrigatório
       );
 
       final resultado = await _importService.processarArquivo(_selectedFile!, config);
@@ -274,8 +267,22 @@ class _ImportarScreenState extends State<ImportarScreen> {
 
         if (_success) {
           _resumo = resultado['resumo'];
-          _message = 'Importação concluída com sucesso!';
+          final anosDetectados = resultado['anos_detectados'] as List<int>?;
+          final totalAnos = anosDetectados?.length ?? 0;
+
+          // CORREÇÃO 2: Verificar se anosDetectados não é nulo antes de usar
+          _message = 'Importação concluída com sucesso! '
+              'Foram detectados e importados $totalAnos anos de dados CAP.';
+
+          if (anosDetectados != null && anosDetectados.isNotEmpty) {
+            _message = _message! + ' Anos: ${anosDetectados.join(', ')}';
+          }
+
           _adicionarLog('=== IMPORTACAO CONCLUIDA COM SUCESSO ===');
+          _adicionarLog('Total de anos detectados: $totalAnos');
+          if (anosDetectados != null) {
+            _adicionarLog('Anos: ${anosDetectados.join(', ')}');
+          }
         } else {
           _message = resultado['erro'] as String;
           _adicionarLog('=== IMPORTACAO FALHOU ===');
@@ -322,7 +329,7 @@ class _ImportarScreenState extends State<ImportarScreen> {
             ),
             SizedBox(height: 16),
             Text(
-              'Escolha um arquivo CSV com os dados das árvores ou use nosso arquivo de exemplo para testar.',
+              'Escolha um arquivo CSV com os dados das árvores. O sistema detectará automaticamente todas as colunas de CAP (CAP_2020, CAP_2021, etc.) e importará todos os dados históricos.',
               style: TextStyle(color: Colors.grey[700]),
             ),
             SizedBox(height: 16),
@@ -462,6 +469,26 @@ class _ImportarScreenState extends State<ImportarScreen> {
                 fontStyle: FontStyle.italic,
               ),
             ),
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: Colors.green, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'O sistema detectará automaticamente todas as colunas CAP_XXXX (CAP_2020, CAP_2021, etc.)',
+                      style: TextStyle(fontSize: 12, color: Colors.green[800]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -583,6 +610,8 @@ class _ImportarScreenState extends State<ImportarScreen> {
             _buildResumoItem('Parcelas Afetadas', _resumo!['parcelas_afetadas'].toString()),
             _buildResumoItem('Novas Árvores', _resumo!['novas_arvores'].toString()),
             _buildResumoItem('Árvores Atualizadas', _resumo!['arvores_atualizadas'].toString()),
+            if (_resumo!.containsKey('anos_detectados') && _resumo!['anos_detectados'] != null)
+              _buildResumoItem('Anos Detectados', _resumo!['anos_detectados'].length.toString()),
             if (_resumo!['linhas_com_erro'] > 0)
               _buildResumoItem('Linhas com Erro', _resumo!['linhas_com_erro'].toString()),
           ],
@@ -690,7 +719,7 @@ class _ImportarScreenState extends State<ImportarScreen> {
                     ),
                     SizedBox(height: 12),
                     Text(
-                      'Importe dados de árvores a partir de um arquivo CSV. O sistema converterá automaticamente CAP para DAP e organizará os dados por bloco, faixa e parcela.',
+                      'Importe dados de árvores a partir de um arquivo CSV. O sistema detectará automaticamente todas as colunas de CAP (CAP_XXXX) e importará todos os dados históricos.',
                       style: TextStyle(color: Colors.grey[700]),
                     ),
                     SizedBox(height: 8),
@@ -702,11 +731,11 @@ class _ImportarScreenState extends State<ImportarScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info, color: Colors.blue, size: 16),
+                          Icon(Icons.auto_awesome, color: Colors.blue, size: 16),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Arquivo de exemplo: dados.csv (já incluído no app)',
+                              'Detecção automática: Todos os anos de CAP serão importados',
                               style: TextStyle(fontSize: 12, color: Colors.blue[800]),
                             ),
                           ),
@@ -724,49 +753,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
             // Formatos suportados
             _buildSupportedFormats(),
 
-            // Seletor de ano
-            Card(
-              margin: EdgeInsets.all(16),
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '2. Selecione o ano de referência',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Informe o ano de referência para o CAP (Circunferência à Altura do Peito). Este ano será usado nos cálculos e relatórios.',
-                      style: TextStyle(color: Colors.grey[700]),
-                    ),
-                    SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
-                      value: _selectedYear,
-                      decoration: InputDecoration(
-                        labelText: 'Ano para CAP',
-                        border: OutlineInputBorder(),
-                        helperText: 'O CAP será convertido para DAP automaticamente',
-                      ),
-                      items: List.generate(30, (index) {
-                        int year = DateTime.now().year - 15 + index;
-                        return DropdownMenuItem(
-                          value: year,
-                          child: Text('$year'),
-                        );
-                      }),
-                      onChanged: (_isImporting || _isValidatingFile) ? null : (value) {
-                        setState(() {
-                          _selectedYear = value;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
             // Botão de importação
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
@@ -783,10 +769,10 @@ class _ImportarScreenState extends State<ImportarScreen> {
                     ),
                   )
                       : Icon(Icons.upload),
-                  label: Text(_isImporting ? 'Importando...' : 'Iniciar Importação'),
-                  onPressed: (_isImporting || _selectedFile == null || _selectedYear == null) ? null : _importFile,
+                  label: Text(_isImporting ? 'Importando...' : 'Iniciar Importação Automática'),
+                  onPressed: (_isImporting || _selectedFile == null) ? null : _importFile,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: (_selectedFile != null && _selectedYear != null && !_isImporting)
+                    backgroundColor: (_selectedFile != null && !_isImporting)
                         ? Colors.green
                         : Colors.grey,
                     padding: EdgeInsets.symmetric(vertical: 16),

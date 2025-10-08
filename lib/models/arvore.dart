@@ -1,17 +1,18 @@
 class Arvore {
-  int? id;
-  int parcelaId;
-  int numeroArvore;
-  String codigo;
-  double x;
-  double y;
-  String familia;
-  String nomeCientifico;
-  double dap;
-  double ht;
+  final int id;
+  final int parcelaId;
+  final int numeroArvore;
+  final String codigo;
+  final double x;
+  final double y;
+  final String familia;
+  final String nomeCientifico;
+  final double cap;
+  final double hc;
+  final double ht;
 
   Arvore({
-    this.id,
+    this.id = 0,
     required this.parcelaId,
     required this.numeroArvore,
     required this.codigo,
@@ -19,9 +20,11 @@ class Arvore {
     required this.y,
     required this.familia,
     required this.nomeCientifico,
-    required this.dap,
+    required this.cap,
+    required this.hc,
     required this.ht,
   });
+
 
   Map<String, dynamic> toMap() {
     return {
@@ -33,7 +36,8 @@ class Arvore {
       'y': y,
       'familia': familia,
       'nome_cientifico': nomeCientifico,
-      'dap': dap,
+      'cap': cap, // MUDOU
+      'hc': hc,   // NOVO
       'ht': ht,
     };
   }
@@ -48,8 +52,21 @@ class Arvore {
       y: map['y']?.toDouble() ?? 0.0,
       familia: map['familia'],
       nomeCientifico: map['nome_cientifico'],
-      dap: map['dap']?.toDouble() ?? 0.0,
+      cap: map['cap']?.toDouble() ?? 0.0, // MUDOU
+      hc: map['hc']?.toDouble() ?? 0.0,   // NOVO
       ht: map['ht']?.toDouble() ?? 0.0,
     );
+  }
+
+  // Método para converter DAP para CAP (se necessário)
+  double get dap => cap / 3.14159; // CAP para DAP aproximado
+
+  // Método para obter medições formatadas por ano
+  Map<String, double> getMedicoesPorAno(int ano) {
+    return {
+      'CAP_$ano': cap,
+      'HC_$ano': hc,
+      'HT_$ano': ht,
+    };
   }
 }

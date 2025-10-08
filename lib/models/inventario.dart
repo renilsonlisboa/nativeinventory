@@ -1,31 +1,37 @@
 class Inventario {
-  int? id;
-  String nome;
-  int numeroBlocos;
-  int numeroParcelas;
-  int numeroFaixas;
-  double dapMinimo; // NOVO CAMPO
-  DateTime dataCriacao;
+  final int id;
+  final String nome;
+  final int areaInventariada;
+  final int numeroBlocos;
+  final int numeroFaixas;
+  final int numeroParcelas;
+  final double dapMinimo;
+  final String dataCriacao;
+  final int ano; // NOVO CAMPO
 
   Inventario({
-    this.id,
+    this.id = 0,
     required this.nome,
+    required this.areaInventariada,
     required this.numeroBlocos,
-    required this.numeroParcelas,
     required this.numeroFaixas,
-    required this.dapMinimo, // NOVO
+    required this.numeroParcelas,
+    required this.dapMinimo,
     required this.dataCriacao,
+    required this.ano, // NOVO
   });
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'nome': nome,
+      'area_inventariada' : areaInventariada,
       'numero_blocos': numeroBlocos,
-      'numero_parcelas': numeroParcelas,
       'numero_faixas': numeroFaixas,
-      'dap_minimo': dapMinimo, // NOVO
-      'data_criacao': dataCriacao.toIso8601String(),
+      'numero_parcelas': numeroParcelas,
+      'dap_minimo': dapMinimo,
+      'data_criacao': dataCriacao,
+      'ano': ano, // NOVO
     };
   }
 
@@ -33,11 +39,13 @@ class Inventario {
     return Inventario(
       id: map['id'],
       nome: map['nome'],
+      areaInventariada: map['area_inventariada'],
       numeroBlocos: map['numero_blocos'],
-      numeroParcelas: map['numero_parcelas'],
       numeroFaixas: map['numero_faixas'],
-      dapMinimo: map['dap_minimo']?.toDouble() ?? 10.0, // Valor padrão 10.0 cm
-      dataCriacao: DateTime.parse(map['data_criacao']),
+      numeroParcelas: map['numero_parcelas'],
+      dapMinimo: map['dap_minimo']?.toDouble() ?? 10.0,
+      dataCriacao: map['data_criacao'],
+      ano: map['ano'] ?? DateTime.now().year, // NOVO - default para ano atual
     );
   }
 }

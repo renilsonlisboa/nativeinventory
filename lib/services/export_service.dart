@@ -169,7 +169,7 @@ class ExportService {
     sql.writeln("  ${inventario.numeroBlocos},");
     sql.writeln("  ${inventario.numeroFaixas},");
     sql.writeln("  ${inventario.numeroParcelas},");
-    sql.writeln("  '${inventario.dataCriacao.toIso8601String()}'");
+    sql.writeln("  '${inventario.dataCriacao}'");
     sql.writeln(");");
     sql.writeln();
 

@@ -12,20 +12,43 @@ class NovoInventarioScreen extends StatefulWidget {
 class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nomeController = TextEditingController();
+  final _areaController = TextEditingController();
   final _blocosController = TextEditingController();
   final _parcelasController = TextEditingController();
   final _faixasController = TextEditingController();
+  final _anoMedicaoController = TextEditingController();
   final _dapMinimoController = TextEditingController(text: '10.0'); // Valor padrão
+
+  @override
+  void initState() {
+    super.initState();
+    // Define o ano atual como padrão
+    _anoMedicaoController.text = DateTime.now().year.toString();
+  }
+
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    _areaController.dispose();
+    _blocosController.dispose();
+    _parcelasController.dispose();
+    _faixasController.dispose();
+    _anoMedicaoController.dispose();
+    _dapMinimoController.dispose();
+    super.dispose();
+  }
 
   Future<void> _criarInventario() async {
     if (_formKey.currentState!.validate()) {
       final inventario = Inventario(
         nome: _nomeController.text,
+        areaInventariada: int.parse(_areaController.text),
         numeroBlocos: int.parse(_blocosController.text),
         numeroParcelas: int.parse(_parcelasController.text),
         numeroFaixas: int.parse(_faixasController.text),
+        ano: int.parse(_anoMedicaoController.text),
         dapMinimo: double.parse(_dapMinimoController.text), // NOVO
-        dataCriacao: DateTime.now(),
+        dataCriacao: DateTime.now().toIso8601String(),
       );
 
       final dbHelper = DatabaseHelper();
@@ -67,107 +90,150 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
       ),
       body: Padding(
         padding: EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: _nomeController,
-                decoration: InputDecoration(
-                  labelText: 'Nome do Inventário',
-                  border: OutlineInputBorder(),
+        child: SingleChildScrollView( // evita overflow em telas pequenas
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: _nomeController,
+                  decoration: InputDecoration(
+                    labelText: 'Nome do Inventário',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, insira um nome';
+                    }
+                    return null;
+                  },
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira um nome';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _blocosController,
-                decoration: InputDecoration(
-                  labelText: 'Número de Blocos',
-                  border: OutlineInputBorder(),
+                SizedBox(height: 16),
+                TextFormField(
+                  controller: _areaController,
+                  decoration: InputDecoration(
+                    labelText: 'Área do Inventário',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, insira o número de blocos';
+                    }
+                    if (int.tryParse(value) == null) {
+                      return 'Por favor, insira um número válido';
+                    }
+                    return null;
+                  },
                 ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o número de blocos';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Por favor, insira um número válido';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _parcelasController,
-                decoration: InputDecoration(
-                  labelText: 'Número de Parcelas',
-                  border: OutlineInputBorder(),
+                SizedBox(height: 16),
+                TextFormField(
+                  controller: _blocosController,
+                  decoration: InputDecoration(
+                    labelText: 'Número de Blocos',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, insira o número de blocos';
+                    }
+                    if (int.tryParse(value) == null) {
+                      return 'Por favor, insira um número válido';
+                    }
+                    return null;
+                  },
                 ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o número de parcelas';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Por favor, insira um número válido';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _faixasController,
-                decoration: InputDecoration(
-                  labelText: 'Número de Faixas',
-                  border: OutlineInputBorder(),
+                SizedBox(height: 16),
+                TextFormField(
+                  controller: _parcelasController,
+                  decoration: InputDecoration(
+                    labelText: 'Número de Parcelas',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, insira o número de parcelas';
+                    }
+                    if (int.tryParse(value) == null) {
+                      return 'Por favor, insira um número válido';
+                    }
+                    return null;
+                  },
                 ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o número de faixas';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Por favor, insira um número válido';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              // NOVO CAMPO: DAP Mínimo
-              TextFormField(
-                controller: _dapMinimoController,
-                decoration: InputDecoration(
-                  labelText: 'DAP Mínimo (cm)',
-                  border: OutlineInputBorder(),
-                  helperText: 'Árvores com DAP abaixo deste valor não serão incluídas',
+                SizedBox(height: 16),
+                TextFormField(
+                  controller: _faixasController,
+                  decoration: InputDecoration(
+                    labelText: 'Número de Faixas',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType : TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, insira o número de faixas';
+                    }
+                    if (int.tryParse(value) == null) {
+                      return 'Por favor, insira um número válido';
+                    }
+                    return null;
+                  },
                 ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o DAP mínimo';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Por favor, insira um número válido';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _criarInventario,
-                child: Text('Criar Inventário'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                SizedBox(height: 16),
+                // CAMPO ADICIONADO: Ano da Medição
+                TextFormField(
+                  controller: _anoMedicaoController,
+                  decoration: InputDecoration(
+                    labelText: 'Ano da Medição',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, insira o ano da medição';
+                    }
+                    final year = int.tryParse(value);
+                    if (year == null) {
+                      return 'Por favor, insira um ano válido';
+                    }
+                    if (year < 1900 || year > DateTime.now().year + 1) {
+                      return 'Ano fora do intervalo esperado';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-            ],
+                SizedBox(height: 16),
+                // NOVO CAMPO: DAP Mínimo
+                TextFormField(
+                  controller: _dapMinimoController,
+                  decoration: InputDecoration(
+                    labelText: 'DAP Mínimo (cm)',
+                    border: OutlineInputBorder(),
+                    helperText: 'Árvores com DAP abaixo deste valor não serão incluídas',
+                  ),
+                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, insira o DAP mínimo';
+                    }
+                    if (double.tryParse(value) == null) {
+                      return 'Por favor, insira um número válido';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _criarInventario,
+                  child: Text('Criar Inventário'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

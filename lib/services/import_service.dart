@@ -27,7 +27,7 @@ class ImportService {
 
     _adicionarLog('Iniciando processamento do arquivo: ${arquivo.path}');
     _adicionarLog('Inventário: ${config.nomeInventario} (ID: ${config.inventarioId})');
-    _adicionarLog('Ano de referência: ${config.ano}');
+    _adicionarLog('Modo: Detecção automática de colunas CAP');
 
     try {
       // Ler o conteúdo do arquivo
@@ -42,14 +42,25 @@ class ImportService {
         throw Exception('Arquivo CSV vazio ou com apenas cabeçalho');
       }
 
+      // Detectar colunas CAP automaticamente
+      final cabecalho = linhas[0];
+      final colunasCap = _detectarColunasCap(cabecalho);
+
+      if (colunasCap.isEmpty) {
+        throw Exception('Nenhuma coluna CAP_XXXX detectada no arquivo. Formato esperado: CAP_2011, CAP_2012, etc.');
+      }
+
+      _adicionarLog('Colunas CAP detectadas: ${colunasCap.entries.map((e) => 'CAP_${e.key} (índice ${e.value})').join(', ')}');
+
       // Processar dados
-      final resultado = await _processarLinhas(linhas, config);
+      final resultado = await _processarLinhas(linhas, config, colunasCap);
 
       _adicionarLog('Processamento concluído: $totalLinhasProcessadas linhas processadas, $totalLinhasComErro erros');
 
       return {
         'sucesso': true,
         'resumo': resultado,
+        'anos_detectados': colunasCap.keys.toList(),
       };
     } catch (e) {
       _adicionarLog('ERRO durante o processamento: $e');
@@ -60,8 +71,31 @@ class ImportService {
     }
   }
 
+  Map<int, int> _detectarColunasCap(List<dynamic> cabecalho) {
+    final colunasCap = <int, int>{}; // ano -> índice da coluna
+
+    for (int i = 0; i < cabecalho.length; i++) {
+      final nomeColuna = cabecalho[i].toString().toUpperCase().trim();
+
+      // Verificar se é uma coluna CAP (CAP_2011, CAP_2012, etc.)
+      if (nomeColuna.startsWith('CAP_')) {
+        final anoStr = nomeColuna.substring(4); // Remove "CAP_"
+        final ano = int.tryParse(anoStr);
+
+        if (ano != null && ano > 1900 && ano < 2100) {
+          colunasCap[ano] = i;
+          _adicionarLog('Detectada coluna: $nomeColuna no índice $i (ano: $ano)');
+        }
+      }
+    }
+
+    return colunasCap;
+  }
+
   Future<Map<String, dynamic>> _processarLinhas(
-      List<List<dynamic>> linhas, ImportacaoConfig config) async {
+      List<List<dynamic>> linhas,
+      ImportacaoConfig config,
+      Map<int, int> colunasCap) async {
 
     final dbHelper = DatabaseHelper();
     final db = await dbHelper.database;
@@ -77,15 +111,15 @@ class ImportService {
         final linha = linhas[i];
         totalLinhasProcessadas++;
 
-        // Validar linha básica
-        if (linha.length < 11) {
+        // Validar linha básica - agora precisamos de pelo menos 9 colunas (até nome_cientifico)
+        if (linha.length < 9) {
           _adicionarLog('ERRO Linha ${i + 1}: Número insuficiente de colunas (${linha.length})');
           totalLinhasComErro++;
           continue;
         }
 
-        // Extrair dados da linha
-        final dados = _extrairDadosLinha(linha, i + 1);
+        // Extrair dados da linha com múltiplos CAPs
+        final dados = _extrairDadosLinha(linha, i + 1, colunasCap);
         if (dados == null) {
           totalLinhasComErro++;
           continue;
@@ -123,33 +157,84 @@ class ImportService {
       'arvores_atualizadas': arvoresAtualizadas,
       'parcelas_afetadas': parcelasAfetadas,
       'linhas_com_erro': totalLinhasComErro,
+      'anos_detectados': colunasCap.keys.toList(),
     };
   }
 
-  Map<String, dynamic>? _extrairDadosLinha(List<dynamic> linha, int numeroLinha) {
+  Map<String, dynamic>? _extrairDadosLinha(
+      List<dynamic> linha,
+      int numeroLinha,
+      Map<int, int> colunasCap) {
+
     try {
-      // Converter CAP para DAP (CAP = π * DAP, então DAP = CAP / π)
-      final cap = double.tryParse(linha[9].toString());
-      if (cap == null || cap <= 0) {
-        _adicionarLog('ERRO Linha $numeroLinha: CAP inválido (${linha[9]})');
+      // Extrair dados básicos
+      final bloco = int.tryParse(linha[0].toString()) ?? 1;
+      final parcela = int.tryParse(linha[1].toString()) ?? 1;
+      final faixa = int.tryParse(linha[2].toString()) ?? 1;
+      final arvore = int.tryParse(linha[3].toString()) ?? 1;
+      final codigo = linha[4].toString().trim();
+      final x = double.tryParse(linha[5].toString()) ?? 0.0;
+      final y = double.tryParse(linha[6].toString()) ?? 0.0;
+      final familia = linha[7].toString().trim();
+      final nomeCientifico = linha[8].toString().trim();
+
+      // Extrair HT e HC (podem estar em colunas fixas ou variáveis)
+      double ht = 0.0;
+      double hc = 0.0;
+
+      // Tentar encontrar HT e HC - podem estar após as colunas CAP
+      // Procura pelas colunas HT e HC no cabeçalho seria ideal, mas por simplicidade
+      // vamos assumir posições fixas ou procurar pelos nomes
+      if (linha.length > 9) {
+        ht = double.tryParse(linha[9].toString()) ?? 0.0;
+      }
+      if (linha.length > 10) {
+        hc = double.tryParse(linha[10].toString()) ?? 0.0;
+      }
+
+      // Extrair todos os CAPs detectados
+      final capsPorAno = <int, double>{};
+      for (final entry in colunasCap.entries) {
+        final ano = entry.key;
+        final indiceColuna = entry.value;
+
+        if (indiceColuna < linha.length) {
+          final capValue = linha[indiceColuna];
+          final cap = double.tryParse(capValue.toString());
+
+          if (cap != null && cap > 0) {
+            capsPorAno[ano] = cap;
+          } else {
+            _adicionarLog('AVISO Linha $numeroLinha: CAP inválido para ano $ano (valor: $capValue)');
+          }
+        }
+      }
+
+      if (capsPorAno.isEmpty) {
+        _adicionarLog('ERRO Linha $numeroLinha: Nenhum CAP válido encontrado');
         return null;
       }
 
-      final dap = cap / 3.14159;
+      // Usar o CAP mais recente (maior ano) para calcular DAP da árvore atual
+      final anoMaisRecente = capsPorAno.keys.reduce((a, b) => a > b ? a : b);
+      final capMaisRecente = capsPorAno[anoMaisRecente]!;
+      final cap = capMaisRecente;
 
       return {
-        'bloco': int.tryParse(linha[0].toString()) ?? 1,
-        'parcela': int.tryParse(linha[1].toString()) ?? 1,
-        'faixa': int.tryParse(linha[2].toString()) ?? 1,
-        'arvore': int.tryParse(linha[3].toString()) ?? 1,
-        'codigo': linha[4].toString().trim(),
-        'x': double.tryParse(linha[5].toString()) ?? 0.0,
-        'y': double.tryParse(linha[6].toString()) ?? 0.0,
-        'familia': linha[7].toString().trim(),
-        'nome_cientifico': linha[8].toString().trim(),
-        'dap': dap,
-        'ht': double.tryParse(linha[10].toString()) ?? 0.0,
-        'hc': linha.length > 11 ? double.tryParse(linha[11].toString()) ?? 0.0 : 0.0,
+        'bloco': bloco,
+        'parcela': parcela,
+        'faixa': faixa,
+        'arvore': arvore,
+        'codigo': codigo,
+        'x': x,
+        'y': y,
+        'familia': familia,
+        'nome_cientifico': nomeCientifico,
+        'caps_por_ano': capsPorAno, // Mapa com todos os CAPs por ano
+        'cap': cap, // DAP calculado do CAP mais recente
+        'ht': ht,
+        'hc': hc,
+        'ano_mais_recente': anoMaisRecente,
       };
     } catch (e) {
       _adicionarLog('ERRO Linha $numeroLinha: Erro ao extrair dados - $e');
@@ -165,26 +250,29 @@ class ImportService {
 
     // Verificar se árvore já existe
     final arvoreExistente = await db.rawQuery('''
-      SELECT id FROM arvores 
-      WHERE parcela_id = ? AND numero_arvore = ?
-    ''', [parcelaId, dados['arvore']]);
+    SELECT id FROM arvores 
+    WHERE parcela_id = ? AND numero_arvore = ? AND codigo NOT IN (1, 2)
+  ''', [parcelaId, dados['arvore']]);
+
+    int arvoreId;
+    bool novaArvore = false;
 
     if (arvoreExistente.isNotEmpty) {
-      // Atualizar árvore existente
+      arvoreId = arvoreExistente.first['id'] as int;
+
+      // Atualizar dados da árvore existente
       await db.update('arvores', {
         'codigo': dados['codigo'],
         'x': dados['x'],
         'y': dados['y'],
         'familia': dados['familia'],
         'nome_cientifico': dados['nome_cientifico'],
-        'dap': dados['dap'],
+        'cap': dados['cap'], // DAP do ano mais recente
         'ht': dados['ht'],
-      }, where: 'id = ?', whereArgs: [arvoreExistente.first['id']]);
-
-      return {'novo': false};
+      }, where: 'id = ?', whereArgs: [arvoreId]);
     } else {
       // Inserir nova árvore
-      await db.insert('arvores', {
+      arvoreId = await db.insert('arvores', {
         'parcela_id': parcelaId,
         'numero_arvore': dados['arvore'],
         'codigo': dados['codigo'],
@@ -192,12 +280,30 @@ class ImportService {
         'y': dados['y'],
         'familia': dados['familia'],
         'nome_cientifico': dados['nome_cientifico'],
-        'dap': dados['dap'],
+        'cap': dados['cap'], // DAP do ano mais recente
         'ht': dados['ht'],
       });
-
-      return {'novo': true};
+      novaArvore = true;
     }
+
+    // Salvar todos os CAPs no histórico
+    final capsPorAno = dados['caps_por_ano'] as Map<int, double>;
+    for (final entry in capsPorAno.entries) {
+      final ano = entry.key;
+      final cap = entry.value;
+
+      await db.insert(
+        'arvores_cap_historico',
+        {
+          'arvore_id': arvoreId,
+          'ano': ano,
+          'cap': cap,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    return {'novo': novaArvore};
   }
 
   Future<int> _obterOuCriarParcela(

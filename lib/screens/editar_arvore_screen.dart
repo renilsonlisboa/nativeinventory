@@ -31,6 +31,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
 
   double _dapMinimo = 10.0;
   bool _dapAbaixoMinimo = false;
+  int _anoInventario = DateTime.now().year;
 
   // Listas para armazenar os valores únicos
   List<String> _familiasUnicas = [];
@@ -44,7 +45,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   @override
   void initState() {
     super.initState();
-    _carregarDapMinimo();
+    _carregarDadosInventario();
     _carregarOpcoesUnicas();
 
     if (widget.arvore != null) {
@@ -59,11 +60,12 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     }
   }
 
-  Future<void> _carregarDapMinimo() async {
+  Future<void> _carregarDadosInventario() async {
     final inventario = await DatabaseHelper().getInventario(widget.inventarioId);
     if (inventario != null) {
       setState(() {
         _dapMinimo = inventario.dapMinimo;
+        _anoInventario = inventario.ano;
       });
     }
   }
@@ -105,8 +107,9 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         }
       }
 
+      // CORREÇÃO: Criar a árvore com os parâmetros corretos
       final arvore = Arvore(
-        id: widget.arvore?.id,
+        id: widget.arvore?.id ?? 0, // CORREÇÃO: Usar 0 se for null
         parcelaId: widget.parcelaId,
         numeroArvore: int.parse(_numeroController.text),
         codigo: _codigoController.text,
@@ -114,16 +117,25 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         y: double.parse(_yController.text),
         familia: _familiaController.text,
         nomeCientifico: _nomeCientificoController.text,
-        dap: dapInserido,
+        cap: dapInserido * 3.14159, // CORREÇÃO: Converter DAP para CAP
+        hc: 0.0, // CORREÇÃO: Valor padrão para HC (não coletado na tela)
         ht: double.parse(_htController.text),
       );
 
       final dbHelper = DatabaseHelper();
+
+      // Salvar a árvore
+      int arvoreId;
       if (widget.arvore == null) {
-        await dbHelper.insertArvore(arvore);
+        arvoreId = await dbHelper.insertArvore(arvore);
       } else {
+        arvoreId = arvore.id; // CORREÇÃO: Já é int, não precisa de !
         await dbHelper.updateArvore(arvore);
       }
+
+      // Salvar o CAP no histórico com o ano do inventário
+      final cap = dapInserido * 3.14159;
+      await dbHelper.inserirOuAtualizarCapHistorico(arvoreId, _anoInventario, cap);
 
       Navigator.pop(context, true);
     }
@@ -171,7 +183,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     );
   }
 
-  // Widget personalizado para campo com sugestões - CORRIGIDO
   Widget _buildCampoComSugestoes({
     required TextEditingController controller,
     required FocusNode focusNode,
@@ -205,10 +216,9 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     );
   }
 
-  // MÉTODO CORRIGIDO - Agora recebe o focusNode como parâmetro
   Widget _buildListaSugestoes(
       TextEditingController controller,
-      FocusNode focusNode, // Parâmetro adicionado
+      FocusNode focusNode,
       List<String> sugestoes,
       bool carregando,
       ) {
@@ -250,7 +260,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
               title: Text(sugestao),
               onTap: () {
                 controller.text = sugestao;
-                focusNode.unfocus(); // Agora o focusNode está disponível
+                focusNode.unfocus();
               },
             );
           },
@@ -278,6 +288,43 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           key: _formKey,
           child: ListView(
             children: [
+              // Indicador do ano do inventário
+              Card(
+                color: Colors.blue[50],
+                child: Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Inventário $_anoInventario',
+                              style: TextStyle(
+                                color: Colors.blue[800],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Medições serão salvas como: CAP_$_anoInventario, HT_$_anoInventario',
+                              style: TextStyle(
+                                color: Colors.blue[700],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: 16),
+
               // Indicador de DAP mínimo
               Card(
                 color: _dapAbaixoMinimo ? Colors.orange[50] : Colors.green[50],
@@ -396,6 +443,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                   border: OutlineInputBorder(),
                   errorText: _dapAbaixoMinimo ? 'DAP abaixo do mínimo' : null,
                   suffixText: 'cm',
+                  helperText: 'Será convertido para CAP_$_anoInventario',
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 onChanged: _validarDAP,
@@ -413,8 +461,9 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
               TextFormField(
                 controller: _htController,
                 decoration: InputDecoration(
-                  labelText: 'HT',
+                  labelText: 'HT (m)',
                   border: OutlineInputBorder(),
+                  helperText: 'Será salvo como HT_$_anoInventario',
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
