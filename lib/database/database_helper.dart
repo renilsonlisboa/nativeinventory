@@ -10,8 +10,7 @@ class DatabaseHelper {
   factory DatabaseHelper() => _instance;
   static Database? _database;
 
-  // Aumente a versão para 6 para incluir o campo ano
-  static const int _databaseVersion = 7;
+  static const int _databaseVersion = 8;
 
   DatabaseHelper._internal();
 
@@ -36,48 +35,85 @@ class DatabaseHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Migração para versão 2: tabela de árvores
-    if (oldVersion < 2) {
-      await _createArvoresTable(db);
-      await _createIndexes(db);
-    }
+    print('🔄 Migrando banco da versão $oldVersion para $newVersion');
 
-    // Migração para versão 3: índices (se necessário)
-    if (oldVersion < 3) {
-      await _createIndexes(db);
-    }
+    // Migração versão por versão para evitar pulos
+    for (int version = oldVersion + 1; version <= newVersion; version++) {
+      print('📋 Processando migração para versão $version');
 
-    // Migração para versão 4: coluna dap_minimo
-    if (oldVersion < 4) {
-      await db.execute('ALTER TABLE inventarios ADD COLUMN dap_minimo REAL NOT NULL DEFAULT 10.0');
-    }
+      switch (version) {
+        case 2:
+        // Na versão 2, apenas criamos os índices se não existirem
+          await _createIndexes(db);
+          print('✅ Índices criados na migração v2');
+          break;
 
-    // Migração para versão 5: tabela de histórico de CAPs
-    if (oldVersion < 5) {
-      await _createCapHistoricoTable(db);
-      await _createCapHistoricoIndexes(db);
-    }
+        case 3:
+        // Na versão 3, recriamos os índices (pode ser necessário para novos índices)
+          await _createIndexes(db);
+          print('✅ Índices atualizados na migração v3');
+          break;
 
-    // Migração para versão 6: adicionar campo ano na tabela inventarios
-    if (oldVersion < 6) {
-      await db.execute('ALTER TABLE inventarios ADD COLUMN ano INTEGER NOT NULL DEFAULT 2025');
-    }
+        case 4:
+          await _safeAddColumn(db, 'inventarios', 'dap_minimo', 'REAL NOT NULL DEFAULT 10.0');
+          break;
 
-    if (oldVersion < 7) {
-      await db.execute("ALTER TABLE arvores ADD COLUMN cap REAL NOT NULL DEFAULT 0");
-      await db.execute("ALTER TABLE arvores ADD COLUMN hc REAL NOT NULL DEFAULT 0");
-      // se quiser remover dap, só criando a tabela do zero (SQLite não remove colunas fácil)
-    }
+        case 5:
+          await _createCapHistoricoTable(db);
+          await _createCapHistoricoIndexes(db);
+          print('✅ Tabela de histórico CAP criada na migração v5');
+          break;
 
+        case 6:
+          await _safeAddColumn(db, 'inventarios', 'ano', 'INTEGER NOT NULL DEFAULT 2025');
+          break;
+
+        case 7:
+          await _safeAddColumn(db, 'arvores', 'cap', 'REAL NOT NULL DEFAULT 0');
+          await _safeAddColumn(db, 'arvores', 'hc', 'REAL NOT NULL DEFAULT 0');
+          break;
+
+        case 8:
+          await _createTaxonomiaTables(db);
+          await _createTaxonomiaIndexes(db);
+          print('✅ Tabelas de taxonomia criadas na migração v8');
+          break;
+      }
+    }
+  }
+
+// Método auxiliar para adicionar colunas apenas se não existirem
+  Future<void> _safeAddColumn(Database db, String table, String column, String definition) async {
+    try {
+      // Verifica se a coluna já existe
+      final columns = await db.rawQuery("PRAGMA table_info($table)");
+      final columnExists = columns.any((col) => col['name'] == column);
+
+      if (!columnExists) {
+        await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+        print('✅ Coluna $column adicionada na tabela $table');
+      } else {
+        print('ℹ️ Coluna $column já existe na tabela $table - pulando');
+      }
+    } catch (e) {
+      print('⚠️ Erro ao verificar/adicionar coluna $column na tabela $table: $e');
+      // Em caso de erro, tenta adicionar a coluna ignorando erros de duplicação
+      try {
+        await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+        print('✅ Coluna $column adicionada com sucesso (segunda tentativa)');
+      } catch (e2) {
+        print('❌ Falha ao adicionar coluna $column: $e2');
+      }
+    }
   }
 
   Future<void> _createTables(Database db) async {
-    // Tabela de inventários (COM ano)
+    // Tabela de inventários
     await db.execute('''
       CREATE TABLE inventarios(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT NOT NULL,
-        area_inventariada NOT NULL,
+        area_inventariada REAL NOT NULL,
         numero_blocos INTEGER NOT NULL,
         numero_faixas INTEGER NOT NULL,
         numero_parcelas INTEGER NOT NULL,
@@ -107,28 +143,73 @@ class DatabaseHelper {
     // Tabela de histórico de CAPs
     await _createCapHistoricoTable(db);
 
-    // Índices para melhor performance
+    // Tabelas de taxonomia
+    await _createTaxonomiaTables(db);
+
+    // Índices
     await _createIndexes(db);
     await _createCapHistoricoIndexes(db);
+    await _createTaxonomiaIndexes(db);
+
+    print('✅ Todas as tabelas criadas com sucesso');
+  }
+
+  Future<void> _createTaxonomiaTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE familias(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT UNIQUE NOT NULL,
+        fonte TEXT DEFAULT 'REFLORA',
+        data_importacao DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE especies(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        familia_id INTEGER NOT NULL,
+        nome_cientifico TEXT NOT NULL,
+        sinonimos TEXT,
+        nome_popular TEXT,
+        fonte TEXT DEFAULT 'REFLORA',
+        data_importacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (familia_id) REFERENCES familias (id) ON DELETE CASCADE,
+        UNIQUE(familia_id, nome_cientifico)
+      )
+    ''');
+  }
+
+  Future<void> _createTaxonomiaIndexes(Database db) async {
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_familias_nome ON familias(nome)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_especies_familia_id ON especies(familia_id)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_especies_nome_cientifico ON especies(nome_cientifico)
+    ''');
   }
 
   Future<void> _createArvoresTable(Database db) async {
     await db.execute('''
-    CREATE TABLE arvores(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      parcela_id INTEGER NOT NULL,
-      numero_arvore INTEGER NOT NULL,
-      codigo TEXT NOT NULL,
-      x REAL NOT NULL,
-      y REAL NOT NULL,
-      familia TEXT NOT NULL,
-      nome_cientifico TEXT NOT NULL,
-      cap REAL NOT NULL,
-      hc REAL,
-      ht REAL,
-      FOREIGN KEY (parcela_id) REFERENCES parcelas (id) ON DELETE CASCADE
-    )
-  ''');
+      CREATE TABLE arvores(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        parcela_id INTEGER NOT NULL,
+        numero_arvore INTEGER NOT NULL,
+        codigo TEXT NOT NULL,
+        x REAL NOT NULL,
+        y REAL NOT NULL,
+        familia TEXT NOT NULL,
+        nome_cientifico TEXT NOT NULL,
+        cap REAL NOT NULL DEFAULT 0,
+        hc REAL DEFAULT 0,
+        ht REAL,
+        FOREIGN KEY (parcela_id) REFERENCES parcelas (id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   Future<void> _createCapHistoricoTable(Database db) async {
@@ -172,41 +253,125 @@ class DatabaseHelper {
     ''');
   }
 
-  // Método para verificar se a tabela arvores existe
-  Future<bool> tableExists(String tableName) async {
+  // ========== MÉTODOS PARA TAXONOMIA ==========
+
+  Future<int> insertFamilia(String nome) async {
     final db = await database;
     try {
-      await db.rawQuery('SELECT 1 FROM $tableName LIMIT 1');
+      return await db.insert('familias', {'nome': nome});
+    } catch (e) {
+      final result = await db.query(
+          'familias',
+          where: 'nome = ?',
+          whereArgs: [nome]
+      );
+      if (result.isNotEmpty) {
+        return result.first['id'] as int;
+      }
+      rethrow;
+    }
+  }
+
+  Future<int> insertEspecie(int familiaId, String nomeCientifico, {String? sinonimos, String? nomePopular}) async {
+    final db = await database;
+    try {
+      return await db.insert('especies', {
+        'familia_id': familiaId,
+        'nome_cientifico': nomeCientifico,
+        'sinonimos': sinonimos,
+        'nome_popular': nomePopular,
+      });
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  Future<List<String>> getFamilias({String? filtro}) async {
+    final db = await database;
+    String where = '';
+    List<dynamic> whereArgs = [];
+
+    if (filtro != null && filtro.isNotEmpty) {
+      where = 'nome LIKE ?';
+      whereArgs = ['%$filtro%'];
+    }
+
+    final List<Map<String, dynamic>> maps = await db.query(
+        'familias',
+        where: where,
+        whereArgs: whereArgs,
+        orderBy: 'nome',
+        limit: 50
+    );
+
+    return List.generate(maps.length, (i) => maps[i]['nome'] as String);
+  }
+
+  Future<List<String>> getEspeciesByFamilia(String familia, {String? filtro}) async {
+    final db = await database;
+
+    String where = 'f.nome = ?';
+    List<dynamic> whereArgs = [familia];
+
+    if (filtro != null && filtro.isNotEmpty) {
+      where += ' AND (e.nome_cientifico LIKE ? OR e.sinonimos LIKE ?)';
+      whereArgs.add('%$filtro%');
+      whereArgs.add('%$filtro%');
+    }
+
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT DISTINCT e.nome_cientifico 
+      FROM especies e
+      INNER JOIN familias f ON e.familia_id = f.id
+      WHERE $where
+      ORDER BY e.nome_cientifico
+      LIMIT 50
+    ''', whereArgs);
+
+    return List.generate(maps.length, (i) => maps[i]['nome_cientifico'] as String);
+  }
+
+  Future<void> clearTaxonomia() async {
+    final db = await database;
+    await db.delete('especies');
+    await db.delete('familias');
+  }
+
+  Future<int> getCountFamilias() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM familias');
+    return result.first['count'] as int;
+  }
+
+  Future<int> getCountEspecies() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM especies');
+    return result.first['count'] as int;
+  }
+
+  Future<bool> taxonomiaTablesExist() async {
+    final db = await database;
+    try {
+      await db.rawQuery('SELECT 1 FROM familias LIMIT 1');
+      await db.rawQuery('SELECT 1 FROM especies LIMIT 1');
       return true;
     } catch (e) {
       return false;
     }
   }
 
-  // Método para criar a tabela arvores se não existir
-  Future<void> ensureArvoresTableExists() async {
-    final exists = await tableExists('arvores');
-    if (!exists) {
+  Future<void> ensureTaxonomiaTablesExist() async {
+    if (!await taxonomiaTablesExist()) {
       final db = await database;
-      await _createArvoresTable(db);
-      await _createIndexes(db);
-    }
-  }
-
-  // Método para criar a tabela de histórico de CAPs se não existir
-  Future<void> ensureCapHistoricoTableExists() async {
-    final exists = await tableExists('arvores_cap_historico');
-    if (!exists) {
-      final db = await database;
-      await _createCapHistoricoTable(db);
-      await _createCapHistoricoIndexes(db);
+      await _createTaxonomiaTables(db);
+      await _createTaxonomiaIndexes(db);
+      print('✅ Tabelas de taxonomia criadas via ensure');
     }
   }
 
   // ========== MÉTODOS PARA HISTÓRICO DE CAP ==========
 
   Future<void> inserirOuAtualizarCapHistorico(int arvoreId, int ano, double cap) async {
-    await ensureCapHistoricoTableExists();
     final db = await database;
     await db.insert(
       'arvores_cap_historico',
@@ -220,7 +385,6 @@ class DatabaseHelper {
   }
 
   Future<List<CapHistorico>> getCapHistoricoByArvore(int arvoreId) async {
-    await ensureCapHistoricoTableExists();
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       'arvores_cap_historico',
@@ -241,7 +405,6 @@ class DatabaseHelper {
   }
 
   Future<List<int>> getAnosComCapturaByArvore(int arvoreId) async {
-    await ensureCapHistoricoTableExists();
     final db = await database;
     final result = await db.rawQuery('''
       SELECT DISTINCT ano FROM arvores_cap_historico 
@@ -253,7 +416,6 @@ class DatabaseHelper {
   }
 
   Future<double?> getCapPorAno(int arvoreId, int ano) async {
-    await ensureCapHistoricoTableExists();
     final db = await database;
     final result = await db.query(
       'arvores_cap_historico',
@@ -268,7 +430,6 @@ class DatabaseHelper {
   }
 
   Future<void> deletarCapHistoricoByArvore(int arvoreId) async {
-    await ensureCapHistoricoTableExists();
     final db = await database;
     await db.delete(
       'arvores_cap_historico',
@@ -278,7 +439,6 @@ class DatabaseHelper {
   }
 
   Future<List<int>> getTodosAnosComCaptura() async {
-    await ensureCapHistoricoTableExists();
     final db = await database;
     final result = await db.rawQuery('''
       SELECT DISTINCT ano FROM arvores_cap_historico 
@@ -413,7 +573,6 @@ class DatabaseHelper {
     return result.first.values.first as int;
   }
 
-  // Métodos para obter valores únicos para filtros
   Future<List<int>> getBlocosUnicos(int inventarioId) async {
     final db = await database;
     final result = await db.rawQuery(
@@ -444,13 +603,11 @@ class DatabaseHelper {
   // ========== MÉTODOS PARA ÁRVORES ==========
 
   Future<int> insertArvore(Arvore arvore) async {
-    await ensureArvoresTableExists();
     final db = await database;
     return await db.insert('arvores', arvore.toMap());
   }
 
   Future<void> insertArvores(List<Arvore> arvores) async {
-    await ensureArvoresTableExists();
     final db = await database;
     final batch = db.batch();
     for (var arvore in arvores) {
@@ -460,7 +617,6 @@ class DatabaseHelper {
   }
 
   Future<List<Arvore>> getArvoresByParcela(int parcelaId) async {
-    await ensureArvoresTableExists();
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       'arvores',
@@ -472,7 +628,6 @@ class DatabaseHelper {
   }
 
   Future<Arvore?> getArvore(int id) async {
-    await ensureArvoresTableExists();
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       'arvores',
@@ -486,7 +641,6 @@ class DatabaseHelper {
   }
 
   Future<int> updateArvore(Arvore arvore) async {
-    await ensureArvoresTableExists();
     final db = await database;
     return await db.update(
       'arvores',
@@ -497,7 +651,6 @@ class DatabaseHelper {
   }
 
   Future<int> deleteArvore(int id) async {
-    await ensureArvoresTableExists();
     final db = await database;
     return await db.delete(
       'arvores',
@@ -507,7 +660,6 @@ class DatabaseHelper {
   }
 
   Future<void> deleteArvoresByParcela(int parcelaId) async {
-    await ensureArvoresTableExists();
     final db = await database;
     await db.delete(
       'arvores',
@@ -517,7 +669,6 @@ class DatabaseHelper {
   }
 
   Future<int> getArvoresCountByParcela(int parcelaId) async {
-    await ensureArvoresTableExists();
     final db = await database;
     final result = await db.rawQuery(
       'SELECT COUNT(*) FROM arvores WHERE parcela_id = ?',
@@ -531,21 +682,18 @@ class DatabaseHelper {
   Future<Map<String, dynamic>> getEstatisticasInventario(int inventarioId) async {
     final db = await database;
 
-    // Total de parcelas
     final totalParcelasResult = await db.rawQuery(
       'SELECT COUNT(*) FROM parcelas WHERE inventario_id = ?',
       [inventarioId],
     );
     final totalParcelas = totalParcelasResult.first.values.first as int;
 
-    // Parcelas concluídas
     final parcelasConcluidasResult = await db.rawQuery(
       'SELECT COUNT(*) FROM parcelas WHERE inventario_id = ? AND concluida = 1',
       [inventarioId],
     );
     final parcelasConcluidas = parcelasConcluidasResult.first.values.first as int;
 
-    // Total de árvores
     final totalArvoresResult = await db.rawQuery('''
       SELECT COUNT(*) FROM arvores 
       INNER JOIN parcelas ON arvores.parcela_id = parcelas.id 
@@ -553,7 +701,6 @@ class DatabaseHelper {
     ''', [inventarioId]);
     final totalArvores = totalArvoresResult.first.values.first as int;
 
-    // Média de árvores por parcela
     final mediaArvoresPorParcela = totalParcelas > 0 ? totalArvores / totalParcelas : 0;
 
     return {
@@ -591,9 +738,7 @@ class DatabaseHelper {
     });
   }
 
-  // Métodos para obter valores únicos de Família e Nome Científico
   Future<List<String>> getFamiliasUnicas() async {
-    await ensureArvoresTableExists();
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.rawQuery(
       'SELECT DISTINCT familia FROM arvores WHERE familia IS NOT NULL AND familia != "" ORDER BY familia',
@@ -602,7 +747,6 @@ class DatabaseHelper {
   }
 
   Future<List<String>> getNomesCientificosUnicos() async {
-    await ensureArvoresTableExists();
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.rawQuery(
       'SELECT DISTINCT nome_cientifico FROM arvores WHERE nome_cientifico IS NOT NULL AND nome_cientifico != "" ORDER BY nome_cientifico',
@@ -627,7 +771,6 @@ class DatabaseHelper {
   Future<void> limparDadosInventario(int inventarioId) async {
     final db = await database;
 
-    // Primeiro deletar o histórico de CAPs das árvores
     await db.execute('''
       DELETE FROM arvores_cap_historico 
       WHERE arvore_id IN (
@@ -637,7 +780,6 @@ class DatabaseHelper {
       )
     ''', [inventarioId]);
 
-    // Depois deletar as árvores
     await db.execute('''
       DELETE FROM arvores 
       WHERE parcela_id IN (
@@ -645,11 +787,9 @@ class DatabaseHelper {
       )
     ''', [inventarioId]);
 
-    // Finalmente deletar as parcelas
     await db.delete('parcelas', where: 'inventario_id = ?', whereArgs: [inventarioId]);
   }
 
-  // NOVO MÉTODO: Obter o ano do inventário
   Future<int> getAnoInventario(int inventarioId) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -662,6 +802,44 @@ class DatabaseHelper {
     if (maps.isNotEmpty) {
       return maps.first['ano'] as int;
     }
-    return DateTime.now().year; // Retorna ano atual como fallback
+    return DateTime.now().year;
+  }
+
+  Future<bool> tableExists(String tableName) async {
+    final db = await database;
+    try {
+      await db.rawQuery('SELECT 1 FROM $tableName LIMIT 1');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> recreateDatabase() async {
+    final dbPath = join(await getDatabasesPath(), 'inventario.db');
+    await deleteDatabase(dbPath);
+    _database = null;
+    await database;
+    print('✅ Banco de dados recriado com todas as tabelas');
+  }
+
+  // Método para verificar se a tabela arvores existe
+  Future<void> ensureArvoresTableExists() async {
+    final exists = await tableExists('arvores');
+    if (!exists) {
+      final db = await database;
+      await _createArvoresTable(db);
+      await _createIndexes(db);
+    }
+  }
+
+  // Método para criar a tabela de histórico de CAPs se não existir
+  Future<void> ensureCapHistoricoTableExists() async {
+    final exists = await tableExists('arvores_cap_historico');
+    if (!exists) {
+      final db = await database;
+      await _createCapHistoricoTable(db);
+      await _createCapHistoricoIndexes(db);
+    }
   }
 }

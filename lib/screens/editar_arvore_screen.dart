@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../models/arvore.dart';
 import '../database/database_helper.dart';
 
@@ -33,12 +34,15 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   bool _dapAbaixoMinimo = false;
   int _anoInventario = DateTime.now().year;
 
-  // Listas para armazenar os valores únicos
-  List<String> _familiasUnicas = [];
-  List<String> _nomesCientificosUnicos = [];
-  bool _carregandoOpcoes = true;
+  // Variáveis para o sistema de taxonomia
+  List<String> _familiasFiltradas = [];
+  List<String> _especiesFiltradas = [];
+  bool _mostrarSugestoesFamilia = false;
+  bool _mostrarSugestoesEspecie = false;
+  String _familiaSelecionada = '';
+  Timer? _debounceTimer;
 
-  // Controladores para o autocomplete
+  // Controladores para os campos
   final _familiaFocusNode = FocusNode();
   final _nomeCientificoFocusNode = FocusNode();
 
@@ -46,7 +50,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   void initState() {
     super.initState();
     _carregarDadosInventario();
-    _carregarOpcoesUnicas();
+    _configurarListeners();
 
     if (widget.arvore != null) {
       _numeroController.text = widget.arvore!.numeroArvore.toString();
@@ -55,9 +59,127 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       _yController.text = widget.arvore!.y.toString();
       _familiaController.text = widget.arvore!.familia;
       _nomeCientificoController.text = widget.arvore!.nomeCientifico;
-      _dapController.text = widget.arvore!.dap.toString();
+
+      // CORREÇÃO: Converter CAP para DAP (CAP = DAP * π)
+      final dap = widget.arvore!.cap / 3.14159;
+      _dapController.text = dap.toStringAsFixed(2);
+
       _htController.text = widget.arvore!.ht.toString();
+
+      _familiaSelecionada = widget.arvore!.familia;
     }
+  }
+
+  void _configurarListeners() {
+    _familiaController.addListener(_onFamiliaChanged);
+    _nomeCientificoController.addListener(_onEspecieChanged);
+    _familiaFocusNode.addListener(_onFamiliaFocusChanged);
+    _nomeCientificoFocusNode.addListener(_onEspecieFocusChanged);
+  }
+
+  void _onFamiliaChanged() {
+    if (_debounceTimer?.isActive ?? false) _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _filtrarFamilias();
+    });
+  }
+
+  void _onEspecieChanged() {
+    if (_debounceTimer?.isActive ?? false) _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _filtrarEspecies();
+    });
+  }
+
+  void _onFamiliaFocusChanged() {
+    if (_familiaFocusNode.hasFocus) {
+      _filtrarFamilias();
+      setState(() {
+        _mostrarSugestoesFamilia = true;
+      });
+    } else {
+      setState(() {
+        _mostrarSugestoesFamilia = false;
+      });
+    }
+  }
+
+  void _onEspecieFocusChanged() {
+    if (_nomeCientificoFocusNode.hasFocus && _familiaSelecionada.isNotEmpty) {
+      _filtrarEspecies();
+      setState(() {
+        _mostrarSugestoesEspecie = true;
+      });
+    } else {
+      setState(() {
+        _mostrarSugestoesEspecie = false;
+      });
+    }
+  }
+
+  Future<void> _filtrarFamilias() async {
+    final filtro = _familiaController.text;
+    final dbHelper = DatabaseHelper();
+
+    // GARANTIR QUE AS TABELAS DE TAXONOMIA EXISTEM
+    await dbHelper.ensureTaxonomiaTablesExist();
+
+    final familias = await dbHelper.getFamilias(filtro: filtro);
+
+    setState(() {
+      _familiasFiltradas = familias;
+      _mostrarSugestoesFamilia = _familiaFocusNode.hasFocus && filtro.isNotEmpty;
+    });
+  }
+
+  Future<void> _filtrarEspecies() async {
+    final filtro = _nomeCientificoController.text;
+
+    if (_familiaSelecionada.isEmpty) {
+      setState(() {
+        _especiesFiltradas = [];
+        _mostrarSugestoesEspecie = false;
+      });
+      return;
+    }
+
+    final dbHelper = DatabaseHelper();
+
+    // GARANTIR QUE AS TABELAS DE TAXONOMIA EXISTEM
+    await dbHelper.ensureTaxonomiaTablesExist();
+
+    final especies = await dbHelper.getEspeciesByFamilia(_familiaSelecionada, filtro: filtro);
+
+    setState(() {
+      _especiesFiltradas = especies;
+      _mostrarSugestoesEspecie = _nomeCientificoFocusNode.hasFocus && filtro.isNotEmpty;
+    });
+  }
+
+  void _selecionarFamilia(String familia) {
+    setState(() {
+      _familiaController.text = familia;
+      _familiaSelecionada = familia;
+      _mostrarSugestoesFamilia = false;
+      _familiaFocusNode.unfocus();
+
+      // Limpar espécie quando mudar a família
+      _nomeCientificoController.clear();
+      _especiesFiltradas = [];
+
+      // Focar no campo de espécie
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        FocusScope.of(context).requestFocus(_nomeCientificoFocusNode);
+      });
+    });
+  }
+
+  void _selecionarEspecie(String especie) {
+    setState(() {
+      _nomeCientificoController.text = especie;
+      _mostrarSugestoesEspecie = false;
+      _nomeCientificoFocusNode.unfocus();
+    });
   }
 
   Future<void> _carregarDadosInventario() async {
@@ -70,24 +192,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     }
   }
 
-  Future<void> _carregarOpcoesUnicas() async {
-    try {
-      final dbHelper = DatabaseHelper();
-      final familias = await dbHelper.getFamiliasUnicas();
-      final nomes = await dbHelper.getNomesCientificosUnicos();
-
-      setState(() {
-        _familiasUnicas = familias;
-        _nomesCientificosUnicos = nomes;
-        _carregandoOpcoes = false;
-      });
-    } catch (e) {
-      setState(() {
-        _carregandoOpcoes = false;
-      });
-    }
-  }
-
   void _validarDAP(String value) {
     final dap = double.tryParse(value) ?? 0.0;
     setState(() {
@@ -95,50 +199,79 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     });
   }
 
+  // CORREÇÃO: Função auxiliar para conversão segura de tipos
+  int _parseIntSafe(String value) {
+    // Tenta converter para double primeiro, depois arredonda para int
+    final parsed = double.tryParse(value);
+    if (parsed == null) {
+      return 0;
+    }
+    return parsed.round();
+  }
+
+  double _parseDoubleSafe(String value) {
+    return double.tryParse(value) ?? 0.0;
+  }
+
   Future<void> _salvarArvore() async {
     if (_formKey.currentState!.validate()) {
-      final dapInserido = double.parse(_dapController.text);
+      try {
+        // CORREÇÃO: Usar conversões seguras
+        final dapInserido = _parseDoubleSafe(_dapController.text);
+        final cap = dapInserido * 3.14159; // Converter DAP para CAP
 
-      // Verificar se o DAP está abaixo do mínimo
-      if (dapInserido < _dapMinimo) {
-        final bool? confirmar = await _mostrarAvisoDapMinimo(dapInserido);
-        if (confirmar != true) {
-          return; // Usuário cancelou
+        // Verificar se o DAP está abaixo do mínimo
+        if (dapInserido < _dapMinimo) {
+          final bool? confirmar = await _mostrarAvisoDapMinimo(dapInserido);
+          if (confirmar != true) {
+            return;
+          }
         }
+
+        // CORREÇÃO: Usar funções de conversão segura
+        final arvore = Arvore(
+          id: widget.arvore?.id ?? 0,
+          parcelaId: widget.parcelaId,
+          numeroArvore: _parseIntSafe(_numeroController.text),
+          codigo: _codigoController.text,
+          x: _parseDoubleSafe(_xController.text),
+          y: _parseDoubleSafe(_yController.text),
+          familia: _familiaController.text,
+          nomeCientifico: _nomeCientificoController.text,
+          cap: cap,
+          hc: 0.0,
+          ht: _parseDoubleSafe(_htController.text),
+        );
+
+        final dbHelper = DatabaseHelper();
+
+        int arvoreId;
+        if (widget.arvore == null) {
+          arvoreId = await dbHelper.insertArvore(arvore);
+        } else {
+          arvoreId = arvore.id;
+          await dbHelper.updateArvore(arvore);
+        }
+
+        // Salvar o CAP no histórico
+        await dbHelper.inserirOuAtualizarCapHistorico(arvoreId, _anoInventario, cap);
+
+        Navigator.pop(context, true);
+      } catch (e) {
+        print('❌ Erro ao salvar árvore: $e');
+        _mostrarErro('Erro ao salvar árvore: $e');
       }
-
-      // CORREÇÃO: Criar a árvore com os parâmetros corretos
-      final arvore = Arvore(
-        id: widget.arvore?.id ?? 0, // CORREÇÃO: Usar 0 se for null
-        parcelaId: widget.parcelaId,
-        numeroArvore: int.parse(_numeroController.text),
-        codigo: _codigoController.text,
-        x: double.parse(_xController.text),
-        y: double.parse(_yController.text),
-        familia: _familiaController.text,
-        nomeCientifico: _nomeCientificoController.text,
-        cap: dapInserido * 3.14159, // CORREÇÃO: Converter DAP para CAP
-        hc: 0.0, // CORREÇÃO: Valor padrão para HC (não coletado na tela)
-        ht: double.parse(_htController.text),
-      );
-
-      final dbHelper = DatabaseHelper();
-
-      // Salvar a árvore
-      int arvoreId;
-      if (widget.arvore == null) {
-        arvoreId = await dbHelper.insertArvore(arvore);
-      } else {
-        arvoreId = arvore.id; // CORREÇÃO: Já é int, não precisa de !
-        await dbHelper.updateArvore(arvore);
-      }
-
-      // Salvar o CAP no histórico com o ano do inventário
-      final cap = dapInserido * 3.14159;
-      await dbHelper.inserirOuAtualizarCapHistorico(arvoreId, _anoInventario, cap);
-
-      Navigator.pop(context, true);
     }
+  }
+
+  void _mostrarErro(String mensagem) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensagem),
+        backgroundColor: Colors.red.shade700,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   Future<bool?> _mostrarAvisoDapMinimo(double dapInserido) async {
@@ -149,7 +282,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         return AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.warning, color: Colors.orange),
+              Icon(Icons.warning, color: Colors.orange.shade700),
               SizedBox(width: 8),
               Text('DAP Abaixo do Mínimo'),
             ],
@@ -173,97 +306,174 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
               onPressed: () => Navigator.of(context).pop(false),
               child: Text('Corrigir DAP'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade700,
+                foregroundColor: Colors.white,
+              ),
               child: Text('Salvar Mesmo Assim'),
             ),
           ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         );
       },
     );
   }
 
-  Widget _buildCampoComSugestoes({
-    required TextEditingController controller,
-    required FocusNode focusNode,
-    required String label,
-    required List<String> sugestoes,
-    required IconData icone,
-    bool carregando = false,
-  }) {
+  Widget _buildCampoFamilia() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextFormField(
-          controller: controller,
-          focusNode: focusNode,
+          controller: _familiaController,
+          focusNode: _familiaFocusNode,
           decoration: InputDecoration(
-            labelText: label,
-            border: OutlineInputBorder(),
-            suffixIcon: Icon(Icons.arrow_drop_down),
-            prefixIcon: Icon(icone),
+            labelText: 'Família Botânica',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.green.shade700, width: 2),
+            ),
+            suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+            prefixIcon: Icon(Icons.category, color: Colors.green.shade700),
+            hintText: 'Digite para buscar famílias...',
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.9),
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'Por favor, insira $label';
+              return 'Por favor, selecione a família';
             }
             return null;
           },
         ),
-        if (focusNode.hasFocus && controller.text.isNotEmpty)
-          _buildListaSugestoes(controller, focusNode, sugestoes, carregando),
+        if (_mostrarSugestoesFamilia && _familiasFiltradas.isNotEmpty)
+          _buildListaSugestoes(
+            _familiasFiltradas,
+            _selecionarFamilia,
+            icone: Icons.category,
+          ),
+        if (_mostrarSugestoesFamilia && _familiasFiltradas.isEmpty && _familiaController.text.isNotEmpty)
+          _buildMensagemNenhumResultado('Nenhuma família encontrada'),
       ],
     );
   }
 
-  Widget _buildListaSugestoes(
-      TextEditingController controller,
-      FocusNode focusNode,
-      List<String> sugestoes,
-      bool carregando,
-      ) {
-    final sugestoesFiltradas = sugestoes
-        .where((sugestao) =>
-        sugestao.toLowerCase().contains(controller.text.toLowerCase()))
-        .toList();
-
-    if (carregando) {
-      return Card(
-        child: ListTile(
-          leading: CircularProgressIndicator(strokeWidth: 2),
-          title: Text('Carregando opções...'),
+  Widget _buildCampoEspecie() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: _nomeCientificoController,
+          focusNode: _nomeCientificoFocusNode,
+          enabled: _familiaSelecionada.isNotEmpty,
+          decoration: InputDecoration(
+            labelText: 'Espécie Botânica',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.green.shade700, width: 2),
+            ),
+            suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+            prefixIcon: Icon(Icons.eco, color: Colors.green.shade700),
+            hintText: _familiaSelecionada.isEmpty
+                ? 'Selecione primeiro a família'
+                : 'Digite para buscar espécies...',
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.9),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Por favor, selecione a espécie';
+            }
+            return null;
+          },
         ),
-      );
-    }
+        if (_mostrarSugestoesEspecie && _especiesFiltradas.isNotEmpty)
+          _buildListaSugestoes(
+            _especiesFiltradas,
+            _selecionarEspecie,
+            icone: Icons.eco,
+          ),
+        if (_mostrarSugestoesEspecie && _especiesFiltradas.isEmpty && _nomeCientificoController.text.isNotEmpty)
+          _buildMensagemNenhumResultado('Nenhuma espécie encontrada para a família $_familiaSelecionada'),
+        if (_familiaSelecionada.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text(
+              'Selecione uma família primeiro',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
-    if (sugestoesFiltradas.isEmpty) {
-      return Card(
-        child: ListTile(
-          leading: Icon(Icons.search_off, color: Colors.grey),
-          title: Text('Nenhuma opção encontrada'),
-          subtitle: Text('Digite para buscar ou adicione um novo valor'),
-        ),
-      );
-    }
-
+  Widget _buildListaSugestoes(List<String> sugestoes, Function(String) onSelecionar, {IconData? icone}) {
     return Card(
       elevation: 4,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      margin: EdgeInsets.only(top: 4),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: 200),
         child: ListView.builder(
           shrinkWrap: true,
-          itemCount: sugestoesFiltradas.length,
+          itemCount: sugestoes.length,
           itemBuilder: (context, index) {
-            final sugestao = sugestoesFiltradas[index];
+            final sugestao = sugestoes[index];
             return ListTile(
-              leading: Icon(Icons.check, color: Colors.green, size: 20),
+              leading: Icon(icone ?? Icons.check, color: Colors.green.shade700, size: 20),
               title: Text(sugestao),
-              onTap: () {
-                controller.text = sugestao;
-                focusNode.unfocus();
-              },
+              onTap: () => onSelecionar(sugestao),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMensagemNenhumResultado(String mensagem) {
+    return Card(
+      elevation: 2,
+      shadowColor: Colors.black12,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      margin: EdgeInsets.only(top: 4),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
+          children: [
+            Icon(Icons.search_off, color: Colors.grey.shade600, size: 20),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                mensagem,
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -273,8 +483,13 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.arvore == null ? 'Nova Árvore' : 'Editar Árvore'),
-        backgroundColor: Colors.green,
+        title: Text(
+          widget.arvore == null ? 'Nova Árvore' : 'Editar Árvore',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: Colors.green.shade700,
+        elevation: 4,
+        shadowColor: Colors.black26,
         actions: [
           IconButton(
             icon: Icon(Icons.save),
@@ -282,215 +497,316 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              // Indicador do ano do inventário
-              Card(
-                color: Colors.blue[50],
-                child: Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Icon(Icons.calendar_today, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Inventário $_anoInventario',
-                              style: TextStyle(
-                                color: Colors.blue[800],
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Medições serão salvas como: CAP_$_anoInventario, HT_$_anoInventario',
-                              style: TextStyle(
-                                color: Colors.blue[700],
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-
-              // Indicador de DAP mínimo
-              Card(
-                color: _dapAbaixoMinimo ? Colors.orange[50] : Colors.green[50],
-                child: Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _dapAbaixoMinimo ? Icons.warning : Icons.info,
-                        color: _dapAbaixoMinimo ? Colors.orange : Colors.green,
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _dapAbaixoMinimo
-                              ? 'DAP abaixo do mínimo (${_dapMinimo} cm)'
-                              : 'DAP mínimo do inventário: ${_dapMinimo} cm',
-                          style: TextStyle(
-                            color: _dapAbaixoMinimo ? Colors.orange[800] : Colors.green[800],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-
-              TextFormField(
-                controller: _numeroController,
-                decoration: InputDecoration(
-                  labelText: 'Número da Árvore',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o número da árvore';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _codigoController,
-                decoration: InputDecoration(
-                  labelText: 'Código',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o código';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _xController,
-                decoration: InputDecoration(
-                  labelText: 'Coordenada X',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira a coordenada X';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _yController,
-                decoration: InputDecoration(
-                  labelText: 'Coordenada Y',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira a coordenada Y';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-
-              // CAMPO FAMÍLIA COM SUGESTÕES
-              _buildCampoComSugestoes(
-                controller: _familiaController,
-                focusNode: _familiaFocusNode,
-                label: 'Família',
-                sugestoes: _familiasUnicas,
-                icone: Icons.category,
-                carregando: _carregandoOpcoes,
-              ),
-              SizedBox(height: 16),
-
-              // CAMPO NOME CIENTÍFICO COM SUGESTÕES
-              _buildCampoComSugestoes(
-                controller: _nomeCientificoController,
-                focusNode: _nomeCientificoFocusNode,
-                label: 'Nome Científico',
-                sugestoes: _nomesCientificosUnicos,
-                icone: Icons.eco,
-                carregando: _carregandoOpcoes,
-              ),
-              SizedBox(height: 16),
-
-              TextFormField(
-                controller: _dapController,
-                decoration: InputDecoration(
-                  labelText: 'DAP (cm)',
-                  border: OutlineInputBorder(),
-                  errorText: _dapAbaixoMinimo ? 'DAP abaixo do mínimo' : null,
-                  suffixText: 'cm',
-                  helperText: 'Será convertido para CAP_$_anoInventario',
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                onChanged: _validarDAP,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o DAP';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Por favor, insira um número válido';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _htController,
-                decoration: InputDecoration(
-                  labelText: 'HT (m)',
-                  border: OutlineInputBorder(),
-                  helperText: 'Será salvo como HT_$_anoInventario',
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor, insira o HT';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _salvarArvore,
-                child: Text('Salvar Árvore'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.green.shade50,
+              Colors.blue.shade50,
             ],
+          ),
+        ),
+        child: GestureDetector(
+          onTap: () {
+            // Fechar sugestões ao tocar fora
+            setState(() {
+              _mostrarSugestoesFamilia = false;
+              _mostrarSugestoesEspecie = false;
+            });
+            FocusScope.of(context).unfocus();
+          },
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  // Card de Ano do Inventário
+                  Card(
+                    elevation: 4,
+                    shadowColor: Colors.black26,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today, color: Colors.blue.shade700),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Inventário $_anoInventario',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade800,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Medições serão salvas como: CAP_$_anoInventario, HT_$_anoInventario',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+
+                  // Card de DAP mínimo
+                  Card(
+                    elevation: 4,
+                    shadowColor: Colors.black26,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    color: _dapAbaixoMinimo ? Colors.orange.shade50 : Colors.green.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _dapAbaixoMinimo ? Icons.warning : Icons.info,
+                            color: _dapAbaixoMinimo ? Colors.orange.shade700 : Colors.green.shade700,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _dapAbaixoMinimo
+                                  ? 'DAP abaixo do mínimo (${_dapMinimo} cm)'
+                                  : 'DAP mínimo do inventário: ${_dapMinimo} cm',
+                              style: TextStyle(
+                                color: _dapAbaixoMinimo ? Colors.orange.shade800 : Colors.green.shade800,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+
+                  // Campos do formulário (agrupados em um card)
+                  Card(
+                    elevation: 4,
+                    shadowColor: Colors.black26,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          _buildTextField(
+                            controller: _numeroController,
+                            label: 'Número da Árvore',
+                            icon: Icons.numbers,
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o número da árvore';
+                              }
+                              final numero = _parseIntSafe(value);
+                              if (numero <= 0) {
+                                return 'Por favor, insira um número válido';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+
+                          _buildTextField(
+                            controller: _codigoController,
+                            label: 'Código',
+                            icon: Icons.tag,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o código';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+
+                          _buildTextField(
+                            controller: _xController,
+                            label: 'Coordenada X',
+                            icon: Icons.pin_drop,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira a coordenada X';
+                              }
+                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
+                                return 'Por favor, insira um número válido';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+
+                          _buildTextField(
+                            controller: _yController,
+                            label: 'Coordenada Y',
+                            icon: Icons.pin_drop,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira a coordenada Y';
+                              }
+                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
+                                return 'Por favor, insira um número válido';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+
+                          // CAMPOS COM SUGESTÕES DA TAXONOMIA
+                          _buildCampoFamilia(),
+                          SizedBox(height: 16),
+
+                          _buildCampoEspecie(),
+                          SizedBox(height: 16),
+
+                          _buildTextField(
+                            controller: _dapController,
+                            label: 'DAP (cm)',
+                            icon: Icons.straighten,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            onChanged: _validarDAP,
+                            errorText: _dapAbaixoMinimo ? 'DAP abaixo do mínimo' : null,
+                            helperText: 'Será convertido para CAP automaticamente',
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o DAP';
+                              }
+                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
+                                return 'Por favor, insira um número válido';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 16),
+
+                          _buildTextField(
+                            controller: _htController,
+                            label: 'HT (m)',
+                            icon: Icons.height,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o HT';
+                              }
+                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
+                                return 'Por favor, insira um número válido';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 24),
+
+                  // Botão Salvar
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton.icon(
+                      onPressed: _salvarArvore,
+                      icon: Icon(Icons.save, size: 24),
+                      label: Text(
+                        'Salvar Árvore',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade700,
+                        foregroundColor: Colors.white,
+                        elevation: 8,
+                        shadowColor: Colors.green.shade700.withOpacity(0.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
+  // Método auxiliar para campos de texto padronizados
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    void Function(String)? onChanged,
+    String? errorText,
+    String? helperText,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.grey.shade700),
+        prefixIcon: Icon(icon, color: Colors.green.shade700),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.green.shade700, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade700),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade700, width: 2),
+        ),
+        errorText: errorText,
+        helperText: helperText,
+        helperStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.9),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      keyboardType: keyboardType,
+      validator: validator,
+      onChanged: onChanged,
+    );
+  }
+
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _familiaFocusNode.dispose();
     _nomeCientificoFocusNode.dispose();
     super.dispose();

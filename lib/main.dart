@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Import necessário para SystemChrome
 import 'screens/tela_inicial.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Configura o modo imersivo para ocultar a barra de navegação e status
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.immersiveSticky, // Modo imersivo com gesto para reaparecer
+  );
   runApp(MyApp());
 }
 
