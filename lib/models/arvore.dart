@@ -2,6 +2,7 @@ class Arvore {
   final int id;
   final int parcelaId;
   final int numeroArvore;
+  final int numeroFuste;
   final String codigo;
   final double x;
   final double y;
@@ -15,6 +16,7 @@ class Arvore {
     this.id = 0,
     required this.parcelaId,
     required this.numeroArvore,
+    required this.numeroFuste,
     required this.codigo,
     required this.x,
     required this.y,
@@ -31,6 +33,7 @@ class Arvore {
       'id': id,
       'parcela_id': parcelaId,
       'numero_arvore': numeroArvore,
+      'numero_fuste': numeroFuste,
       'codigo': codigo,
       'x': x,
       'y': y,
@@ -47,13 +50,14 @@ class Arvore {
       id: map['id'],
       parcelaId: map['parcela_id'],
       numeroArvore: map['numero_arvore'],
+      numeroFuste: map['numero_fuste'],
       codigo: map['codigo'],
       x: map['x']?.toDouble() ?? 0.0,
       y: map['y']?.toDouble() ?? 0.0,
       familia: map['familia'],
       nomeCientifico: map['nome_cientifico'],
-      cap: map['cap']?.toDouble() ?? 0.0, // MUDOU
-      hc: map['hc']?.toDouble() ?? 0.0,   // NOVO
+      cap: map['cap']?.toDouble() ?? 0.0,
+      hc: map['hc']?.toDouble() ?? 0.0,
       ht: map['ht']?.toDouble() ?? 0.0,
     );
   }

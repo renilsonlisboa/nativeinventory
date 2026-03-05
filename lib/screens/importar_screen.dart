@@ -38,7 +38,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
 
   void _pickFile() async {
     try {
-      // Solicitar permissão de armazenamento
       PermissionStatus status = await Permission.storage.request();
 
       if (!status.isGranted) {
@@ -117,13 +116,11 @@ class _ImportarScreenState extends State<ImportarScreen> {
         _message = null;
       });
 
-      // Carregar o arquivo CSV dos assets
       final String csvData = await rootBundle.loadString('assets/csv/dados.csv');
 
       final tempDir = await getTemporaryDirectory();
       final sampleFile = File('${tempDir.path}/dados.csv');
 
-      // Escrever o conteúdo do asset no arquivo temporário
       await sampleFile.writeAsString(csvData);
 
       setState(() {
@@ -152,7 +149,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
     }
   }
 
-  // Método alternativo para copiar arquivo de assets para local acessível
   void _copyAssetFileToDownload() async {
     try {
       setState(() {
@@ -160,7 +156,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
         _message = null;
       });
 
-      // Solicitar permissão
       PermissionStatus status = await Permission.storage.request();
       if (!status.isGranted) {
         setState(() {
@@ -170,11 +165,9 @@ class _ImportarScreenState extends State<ImportarScreen> {
         return;
       }
 
-      // Carregar o arquivo CSV dos assets
       final ByteData data = await rootBundle.load('assets/csv/dados.csv');
       final List<int> bytes = data.buffer.asUint8List();
 
-      // Obter diretório de Download
       final Directory? downloadsDir = await getExternalStorageDirectory();
       if (downloadsDir == null) {
         setState(() {
@@ -250,13 +243,10 @@ class _ImportarScreenState extends State<ImportarScreen> {
     _adicionarLog('Modo: Importação automática de todas as colunas de CAP');
 
     try {
-      // CORREÇÃO: Adicionar o parâmetro 'ano' obrigatório
-      // Como estamos importando todos os anos, podemos usar um valor padrão como 0
-      // ou o ano atual, mas o serviço deve ignorar isso quando detectar múltiplos anos
       final config = ImportacaoConfig(
         inventarioId: widget.inventarioId,
         nomeInventario: widget.nomeInventario,
-        ano: DateTime.now().year, // Adicionando o parâmetro obrigatório
+        ano: DateTime.now().year,
       );
 
       final resultado = await _importService.processarArquivo(_selectedFile!, config);
@@ -270,7 +260,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
           final anosDetectados = resultado['anos_detectados'] as List<int>?;
           final totalAnos = anosDetectados?.length ?? 0;
 
-          // CORREÇÃO 2: Verificar se anosDetectados não é nulo antes de usar
           _message = 'Importação concluída com sucesso! '
               'Foram detectados e importados $totalAnos anos de dados CAP.';
 
@@ -315,24 +304,201 @@ class _ImportarScreenState extends State<ImportarScreen> {
     _adicionarLog('Seleção de arquivo limpa');
   }
 
-  Widget _buildFileInput() {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Importar Dados',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: Colors.green.shade700,
+        elevation: 4,
+        shadowColor: Colors.black26,
+        actions: [
+          if (_logs.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.info),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Logs de Importação'),
+                    content: Container(
+                      width: double.maxFinite,
+                      height: 400,
+                      child: Scrollbar(
+                        child: ListView.builder(
+                          itemCount: _logs.length,
+                          itemBuilder: (context, index) {
+                            final log = _logs[index];
+                            final isError = log.toLowerCase().contains('erro');
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Text(
+                                log,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontFamily: 'Monospace',
+                                  color: isError ? Colors.red.shade700 : Colors.black87,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Fechar'),
+                      ),
+                    ],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.green.shade50,
+              Colors.blue.shade50,
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              // Cabeçalho informativo
+              _buildInfoHeader(),
+              const SizedBox(height: 16),
+
+              // Card de seleção de arquivo
+              _buildFileInputCard(),
+              const SizedBox(height: 16),
+
+              // Card de formatos suportados
+              _buildSupportedFormatsCard(),
+              const SizedBox(height: 16),
+
+              // Botão de importação
+              _buildImportButton(),
+
+              // Mensagem de status
+              if (_message != null) _buildStatusMessage(),
+
+              // Resumo
+              if (_resumo != null) _buildResumoCard(),
+
+              // Logs
+              if (_logs.isNotEmpty) _buildLogsCard(),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoHeader() {
     return Card(
-      margin: EdgeInsets.symmetric(horizontal: 16),
+      elevation: 4,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '1. Selecionar Arquivo',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Row(
+              children: [
+                Icon(Icons.forest, color: Colors.green.shade700),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Importação para: ${widget.nomeInventario}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.green.shade800,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Text(
+              'Importe dados de árvores a partir de um arquivo CSV. O sistema detectará automaticamente todas as colunas de CAP (CAP_XXXX) e importará todos os dados históricos.',
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: Colors.blue.shade700, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Detecção automática: Todos os anos de CAP serão importados',
+                      style: TextStyle(fontSize: 12, color: Colors.blue.shade800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileInputCard() {
+    return Card(
+      elevation: 4,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.file_upload, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  '1. Selecionar Arquivo',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.blue.shade800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             Text(
               'Escolha um arquivo CSV com os dados das árvores. O sistema detectará automaticamente todas as colunas de CAP (CAP_2020, CAP_2021, etc.) e importará todos os dados históricos.',
-              style: TextStyle(color: Colors.grey[700]),
+              style: TextStyle(color: Colors.grey.shade700),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
@@ -346,85 +512,101 @@ class _ImportarScreenState extends State<ImportarScreen> {
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                        : Icon(Icons.folder_open),
+                        : const Icon(Icons.folder_open),
                     label: Text(_isValidatingFile ? 'Selecionando...' : 'Selecionar Arquivo'),
                     onPressed: _isValidatingFile ? null : _pickFile,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Colors.blue.shade700,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                      elevation: 4,
+                      shadowColor: Colors.blue.shade700.withOpacity(0.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    icon: Icon(Icons.file_copy),
-                    label: Text('Usar Exemplo'),
+                    icon: const Icon(Icons.file_copy),
+                    label: const Text('Usar Exemplo'),
                     onPressed: _isValidatingFile ? null : _createSampleFile,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.orange,
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                      foregroundColor: Colors.orange.shade700,
+                      side: BorderSide(color: Colors.orange.shade700),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Align(
               alignment: Alignment.center,
               child: TextButton.icon(
-                icon: Icon(Icons.download, size: 16),
-                label: Text('Copiar dados.csv para Downloads'),
+                icon: const Icon(Icons.download, size: 16),
+                label: const Text('Copiar dados.csv para Downloads'),
                 onPressed: _isValidatingFile ? null : _copyAssetFileToDownload,
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.blue,
+                  foregroundColor: Colors.blue.shade700,
                 ),
               ),
             ),
             if (_fileName != null) ...[
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Container(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green),
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade700),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle, color: Colors.green),
-                    SizedBox(width: 12),
+                    Icon(Icons.check_circle, color: Colors.green.shade700),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Arquivo selecionado:',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green.shade800,
+                            ),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Text(
                             _fileName!,
                             style: TextStyle(fontWeight: FontWeight.w500),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             'Tamanho: ${_formatFileSize(_fileSize)}',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                           ),
                           if (_fileName == 'dados.csv') ...[
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             Text(
                               'Fonte: Arquivo interno do app',
-                              style: TextStyle(fontSize: 10, color: Colors.green[700], fontStyle: FontStyle.italic),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green.shade700,
+                                fontStyle: FontStyle.italic,
+                              ),
                             ),
                           ],
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
+                      icon: Icon(Icons.delete, color: Colors.red.shade700),
                       onPressed: _clearSelection,
                       tooltip: 'Remover arquivo',
                     ),
@@ -438,52 +620,58 @@ class _ImportarScreenState extends State<ImportarScreen> {
     );
   }
 
-  Widget _buildSupportedFormats() {
+  Widget _buildSupportedFormatsCard() {
     return Card(
-      margin: EdgeInsets.all(16),
+      elevation: 4,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.help, color: Colors.blue),
-                SizedBox(width: 8),
+                Icon(Icons.help, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
                 Text(
                   'Formatos Suportados',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.blue.shade800,
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             _buildFormatItem('CSV (.csv)', 'Arquivos de texto separados por vírgula'),
             _buildFormatItem('Excel (.xlsx, .xls)', 'Planilhas do Microsoft Excel'),
             _buildFormatItem('Texto (.txt)', 'Arquivos de texto simples'),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Estrutura esperada: Bloco, Parcela, Faixa, Arvore, Codigo, X, Y, Familia, Nome_Cientifico, CAP_XXXX, HT, HC',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey[600],
+                color: Colors.grey.shade600,
                 fontStyle: FontStyle.italic,
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Container(
-              padding: EdgeInsets.all(8),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(4),
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.auto_awesome, color: Colors.green, size: 16),
-                  SizedBox(width: 8),
+                  Icon(Icons.auto_awesome, color: Colors.green.shade700, size: 16),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'O sistema detectará automaticamente todas as colunas CAP_XXXX (CAP_2020, CAP_2021, etc.)',
-                      style: TextStyle(fontSize: 12, color: Colors.green[800]),
+                      style: TextStyle(fontSize: 12, color: Colors.green.shade800),
                     ),
                   ),
                 ],
@@ -497,12 +685,12 @@ class _ImportarScreenState extends State<ImportarScreen> {
 
   Widget _buildFormatItem(String format, String description) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.check_circle, color: Colors.green, size: 16),
-          SizedBox(width: 8),
+          Icon(Icons.check_circle, color: Colors.green.shade700, size: 16),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,7 +698,7 @@ class _ImportarScreenState extends State<ImportarScreen> {
                 Text(format, style: TextStyle(fontWeight: FontWeight.w500)),
                 Text(
                   description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -520,92 +708,113 @@ class _ImportarScreenState extends State<ImportarScreen> {
     );
   }
 
-  Widget _buildLogs() {
-    if (_logs.isEmpty) return SizedBox.shrink();
-
-    return Card(
-      margin: EdgeInsets.all(16),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.list, color: Colors.blue),
-                SizedBox(width: 8),
-                Text(
-                  'Log de Processamento',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Detalhes do processamento do arquivo:',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            SizedBox(height: 12),
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey[300]!),
-                borderRadius: BorderRadius.circular(4),
-                color: Colors.grey[50],
-              ),
-              child: Scrollbar(
-                child: ListView.builder(
-                  padding: EdgeInsets.all(8),
-                  itemCount: _logs.length,
-                  itemBuilder: (context, index) {
-                    final log = _logs[index];
-                    final isError = log.toLowerCase().contains('erro') ||
-                        log.toLowerCase().contains('error') ||
-                        log.toLowerCase().contains('falha');
-
-                    return Container(
-                      padding: EdgeInsets.symmetric(vertical: 2, horizontal: 8),
-                      color: isError ? Colors.red[50] : null,
-                      child: Text(
-                        log,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontFamily: 'Monospace',
-                          color: isError ? Colors.red : Colors.black,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
+  Widget _buildImportButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton.icon(
+        icon: _isImporting
+            ? SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        )
+            : const Icon(Icons.upload),
+        label: Text(
+          _isImporting ? 'Importando...' : 'Iniciar Importação Automática',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        onPressed: (_isImporting || _selectedFile == null) ? null : _importFile,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _selectedFile != null && !_isImporting
+              ? Colors.green.shade700
+              : Colors.grey.shade400,
+          foregroundColor: Colors.white,
+          elevation: 8,
+          shadowColor: _selectedFile != null && !_isImporting
+              ? Colors.green.shade700.withOpacity(0.5)
+              : Colors.grey.shade400.withOpacity(0.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
         ),
       ),
     );
   }
 
-  Widget _buildResumo() {
-    if (_resumo == null) return SizedBox.shrink();
+  Widget _buildStatusMessage() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _success ? Colors.green.shade50 : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _success ? Colors.green.shade700 : Colors.red.shade700,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _success ? Icons.check_circle : Icons.error,
+            color: _success ? Colors.green.shade700 : Colors.red.shade700,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _success ? 'Sucesso!' : 'Atenção',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _success ? Colors.green.shade800 : Colors.red.shade800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _message!,
+                  style: TextStyle(color: Colors.grey.shade800),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildResumoCard() {
     return Card(
-      margin: EdgeInsets.all(16),
+      elevation: 4,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.only(top: 16),
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.summarize, color: Colors.green),
-                SizedBox(width: 8),
+                Icon(Icons.summarize, color: Colors.green.shade700),
+                const SizedBox(width: 8),
                 Text(
                   'Resumo da Importação',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.green.shade800,
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             _buildResumoItem('Árvores Processadas', _resumo!['total_arvores'].toString()),
             _buildResumoItem('Parcelas Afetadas', _resumo!['parcelas_afetadas'].toString()),
             _buildResumoItem('Novas Árvores', _resumo!['novas_arvores'].toString()),
@@ -622,23 +831,23 @@ class _ImportarScreenState extends State<ImportarScreen> {
 
   Widget _buildResumoItem(String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           Expanded(
-            child: Text(label, style: TextStyle(color: Colors.grey[700])),
+            child: Text(label, style: TextStyle(color: Colors.grey.shade700)),
           ),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.green[50],
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               value,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.green[800],
+                color: Colors.green.shade800,
               ),
             ),
           ),
@@ -647,188 +856,69 @@ class _ImportarScreenState extends State<ImportarScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Importar Dados'),
-        backgroundColor: Colors.blue,
-        actions: [
-          if (_logs.isNotEmpty)
-            IconButton(
-              icon: Icon(Icons.info),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('Logs de Importação'),
-                    content: Container(
-                      width: double.maxFinite,
-                      height: 400,
-                      child: Scrollbar(
-                        child: ListView.builder(
-                          itemCount: _logs.length,
-                          itemBuilder: (context, index) {
-                            final log = _logs[index];
-                            final isError = log.toLowerCase().contains('erro');
-                            return Text(
-                              log,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontFamily: 'Monospace',
-                                color: isError ? Colors.red : Colors.black,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text('Fechar'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
-      body: SingleChildScrollView(
+  Widget _buildLogsCard() {
+    return Card(
+      elevation: 4,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.only(top: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cabeçalho informativo
-            Card(
-              margin: EdgeInsets.all(16),
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.forest, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text(
-                          'Importação para: ${widget.nomeInventario}',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Row(
+              children: [
+                Icon(Icons.list, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'Log de Processamento',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.blue.shade800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Detalhes do processamento do arquivo:',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(12),
+                color: Colors.grey.shade50,
+              ),
+              child: Scrollbar(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: _logs.length,
+                  itemBuilder: (context, index) {
+                    final log = _logs[index];
+                    final isError = log.toLowerCase().contains('erro') ||
+                        log.toLowerCase().contains('error') ||
+                        log.toLowerCase().contains('falha');
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        log,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'Monospace',
+                          color: isError ? Colors.red.shade700 : Colors.black87,
                         ),
-                      ],
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Importe dados de árvores a partir de um arquivo CSV. O sistema detectará automaticamente todas as colunas de CAP (CAP_XXXX) e importará todos os dados históricos.',
-                      style: TextStyle(color: Colors.grey[700]),
-                    ),
-                    SizedBox(height: 8),
-                    Container(
-                      padding: EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.auto_awesome, color: Colors.blue, size: 16),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Detecção automática: Todos os anos de CAP serão importados',
-                              style: TextStyle(fontSize: 12, color: Colors.blue[800]),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ),
-
-            // Entrada do arquivo
-            _buildFileInput(),
-
-            // Formatos suportados
-            _buildSupportedFormats(),
-
-            // Botão de importação
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: _isImporting
-                      ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                      : Icon(Icons.upload),
-                  label: Text(_isImporting ? 'Importando...' : 'Iniciar Importação Automática'),
-                  onPressed: (_isImporting || _selectedFile == null) ? null : _importFile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: (_selectedFile != null && !_isImporting)
-                        ? Colors.green
-                        : Colors.grey,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    textStyle: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-            ),
-
-            // Mensagem de status
-            if (_message != null)
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(16),
-                margin: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _success ? Colors.green[50] : Colors.red[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _success ? Colors.green : Colors.red,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _success ? Icons.check_circle : Icons.error,
-                      color: _success ? Colors.green : Colors.red,
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _success ? 'Sucesso!' : 'Atenção',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: _success ? Colors.green : Colors.red,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(_message!),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Resumo
-            _buildResumo(),
-
-            // Logs
-            _buildLogs(),
-
-            SizedBox(height: 20),
           ],
         ),
       ),

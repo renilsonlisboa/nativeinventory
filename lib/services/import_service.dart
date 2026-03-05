@@ -172,11 +172,12 @@ class ImportService {
       final parcela = int.tryParse(linha[1].toString()) ?? 1;
       final faixa = int.tryParse(linha[2].toString()) ?? 1;
       final arvore = int.tryParse(linha[3].toString()) ?? 1;
-      final codigo = linha[4].toString().trim();
-      final x = double.tryParse(linha[5].toString()) ?? 0.0;
-      final y = double.tryParse(linha[6].toString()) ?? 0.0;
-      final familia = linha[7].toString().trim();
-      final nomeCientifico = linha[8].toString().trim();
+      final fuste = int.tryParse(linha[4].toString()) ?? 1;
+      final codigo = linha[5].toString().trim();
+      final x = double.tryParse(linha[6].toString()) ?? 0.0;
+      final y = double.tryParse(linha[7].toString()) ?? 0.0;
+      final familia = linha[8].toString().trim();
+      final nomeCientifico = linha[9].toString().trim();
 
       // Extrair HT e HC (podem estar em colunas fixas ou variáveis)
       double ht = 0.0;

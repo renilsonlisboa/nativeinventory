@@ -22,6 +22,7 @@ class EditarArvoreScreen extends StatefulWidget {
 class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   final _formKey = GlobalKey<FormState>();
   final _numeroController = TextEditingController();
+  final _fusteController = TextEditingController();
   final _codigoController = TextEditingController();
   final _xController = TextEditingController();
   final _yController = TextEditingController();
@@ -54,6 +55,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
 
     if (widget.arvore != null) {
       _numeroController.text = widget.arvore!.numeroArvore.toString();
+      _fusteController.text = widget.arvore!.numeroFuste.toString();
       _codigoController.text = widget.arvore!.codigo;
       _xController.text = widget.arvore!.x.toString();
       _yController.text = widget.arvore!.y.toString();
@@ -233,6 +235,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           id: widget.arvore?.id ?? 0,
           parcelaId: widget.parcelaId,
           numeroArvore: _parseIntSafe(_numeroController.text),
+          numeroFuste: _parseIntSafe(_fusteController.text),
           codigo: _codigoController.text,
           x: _parseDoubleSafe(_xController.text),
           y: _parseDoubleSafe(_yController.text),
@@ -612,6 +615,24 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                           _buildTextField(
                             controller: _numeroController,
                             label: 'Número da Árvore',
+                            icon: Icons.numbers,
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o número da árvore';
+                              }
+                              final numero = _parseIntSafe(value);
+                              if (numero <= 0) {
+                                return 'Por favor, insira um número válido';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          SizedBox(height: 16),
+                          _buildTextField(
+                            controller: _fusteController,
+                            label: 'Número do Fuste',
                             icon: Icons.numbers,
                             keyboardType: TextInputType.number,
                             validator: (value) {

@@ -9,7 +9,7 @@ class AdminTaxonomiaScreen extends StatefulWidget {
 }
 
 class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
-  final RefloraService _refloraService = RefloraService();
+  final RefloraFamiliasService _refloraService = RefloraFamiliasService();
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   bool _importando = false;
@@ -27,17 +27,11 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
   }
 
   Future<void> _carregarEstatisticas() async {
-    try {
-      final familias = await _dbHelper.getCountFamilias();
-      final especies = await _dbHelper.getCountEspecies();
-
-      setState(() {
-        _totalFamilias = familias;
-        _totalEspecies = especies;
-      });
-    } catch (e) {
-      print('Erro ao carregar estatísticas: $e');
-    }
+    final stats = await _refloraService.getEstatisticas();
+    setState(() {
+      _totalFamilias = stats['familias']!;
+      _totalEspecies = stats['especies']!;
+    });
   }
 
   Future<void> _verificarConexaoAPI() async {
@@ -51,19 +45,19 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
       _verificandoConexao = false;
       _apiDisponivel = conectado;
       _status = conectado
-          ? '✅ Conectado ao REFLORA Online'
-          : '⚠️ Modo Offline - Dados Locais';
+          ? '✅ Conectado ao GitHub - Dados disponíveis'
+          : '⚠️ Modo Offline - Usando dados locais';
     });
   }
 
-  Future<void> _importarReflora() async {
+  Future<void> _importarDados() async {
     setState(() {
       _importando = true;
-      _status = 'Conectando com REFLORA...';
+      _status = 'Baixando e processando CSV do GitHub...';
     });
 
     try {
-      final resultado = await _refloraService.importarTaxonomia();
+      final resultado = await _refloraService.importarDadosCompletos();
 
       setState(() {
         _importando = false;
@@ -75,8 +69,8 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
       if (resultado['sucesso'] == true) {
         await _carregarEstatisticas();
         _mostrarResultadoImportacao(
-            resultado['familias'] ?? 0,
-            resultado['especies'] ?? 0
+          familias: resultado['familias'] ?? 0,
+          especies: resultado['especies'] ?? 0,
         );
       }
     } catch (e) {
@@ -91,8 +85,9 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
     final confirmado = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Limpar Taxonomia'),
-        content: Text('Tem certeza que deseja remover todas as famílias e espécies? Esta ação não pode ser desfeita.'),
+        title: Text('Limpar Base de Dados'),
+        content: Text(
+            'Tem certeza que deseja remover todas as famílias e espécies da base local? Esta ação não pode ser desfeita.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -108,32 +103,32 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
 
     if (confirmado == true) {
       setState(() {
-        _status = 'Limpando taxonomia...';
+        _status = 'Limpando base de dados...';
       });
 
       try {
         await _dbHelper.clearTaxonomia();
         await _carregarEstatisticas();
-
         setState(() {
-          _status = '✅ Taxonomia limpa com sucesso';
+          _status = '✅ Base de dados limpa com sucesso';
         });
       } catch (e) {
         setState(() {
-          _status = '❌ Erro ao limpar taxonomia: $e';
+          _status = '❌ Erro ao limpar base: $e';
         });
       }
     }
   }
 
-  void _mostrarResultadoImportacao(int familias, int especies) {
+  void _mostrarResultadoImportacao(
+      {required int familias, required int especies}) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
             Icon(Icons.check_circle, color: Colors.green),
-            SizedBox(width: 8),
+            SizedBox(width: 6),
             Text('Importação Concluída'),
           ],
         ),
@@ -141,13 +136,13 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Dados importados do REFLORA com sucesso!'),
+            Text('Dados importados do GitHub com sucesso!'),
             SizedBox(height: 16),
-            _buildItemEstatistica('Famílias importadas:', familias.toString()),
-            _buildItemEstatistica('Espécies importadas:', especies.toString()),
+            _buildItemEstatistica('Famílias:', familias.toString()),
+            _buildItemEstatistica('Espécies:', especies.toString()),
             SizedBox(height: 8),
             Text(
-              'A base local foi atualizada com os dados mais recentes da flora brasileira.',
+              'A base local foi atualizada com os dados da flora brasileira.',
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
@@ -167,12 +162,17 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
       padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Text(
-            label,
-            style: TextStyle(fontWeight: FontWeight.bold),
+          Expanded(
+            flex: 3,
+            child: Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           SizedBox(width: 8),
-          Text(value),
+          Expanded(
+            flex: 2,
+            child: Text(value,
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis),
+          ),
         ],
       ),
     );
@@ -182,13 +182,10 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Taxonomia Botânica',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        title: Text('Base de Dados REFLORA',
+            style: TextStyle(fontWeight: FontWeight.w600)),
         backgroundColor: Colors.green.shade700,
         elevation: 4,
-        shadowColor: Colors.black26,
         actions: [
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.white),
@@ -202,10 +199,7 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Colors.green.shade50,
-              Colors.blue.shade50,
-            ],
+            colors: [Colors.green.shade50, Colors.blue.shade50],
           ),
         ),
         child: SingleChildScrollView(
@@ -213,23 +207,14 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Status da Conexão (card estilizado)
               _buildStatusCard(),
               SizedBox(height: 16),
-
-              // Cartão de estatísticas
               _buildStatsCard(),
               SizedBox(height: 16),
-
-              // Status da operação (se houver)
               if (_status.isNotEmpty) _buildOperationStatusCard(),
               SizedBox(height: 16),
-
-              // Botões de ação (gerenciar taxonomia)
               _buildActionCard(),
               SizedBox(height: 16),
-
-              // Informações sobre REFLORA
               _buildInfoCard(),
             ],
           ),
@@ -238,11 +223,9 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
     );
   }
 
-  // Cards estilizados com sombra e bordas arredondadas
   Widget _buildStatusCard() {
     return Card(
       elevation: 4,
-      shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         decoration: BoxDecoration(
@@ -259,14 +242,14 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  _apiDisponivel ? Colors.green : Colors.orange,
-                ),
+                    _apiDisponivel ? Colors.green : Colors.orange),
               ),
             )
                 : Icon(
-              _apiDisponivel ? Icons.wifi : Icons.wifi_off,
-              color: _apiDisponivel ? Colors.green.shade700 : Colors.orange.shade700,
-              size: 24,
+              _apiDisponivel ? Icons.cloud_done : Icons.cloud_off,
+              color: _apiDisponivel
+                  ? Colors.green.shade700
+                  : Colors.orange.shade700,
             ),
             SizedBox(width: 16),
             Expanded(
@@ -274,16 +257,18 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _apiDisponivel ? 'Conectado ao REFLORA' : 'Modo Offline',
+                    _apiDisponivel ? 'Conectado ao GitHub' : 'Modo Offline',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: _apiDisponivel ? Colors.green.shade700 : Colors.orange.shade700,
+                      color: _apiDisponivel
+                          ? Colors.green.shade700
+                          : Colors.orange.shade700,
                     ),
                   ),
                   Text(
                     _apiDisponivel
-                        ? 'Dados em tempo real da flora brasileira'
+                        ? 'Dados consolidados da flora brasileira'
                         : 'Usando base de dados local',
                     style: TextStyle(fontSize: 14, color: Colors.black54),
                   ),
@@ -299,7 +284,6 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
   Widget _buildStatsCard() {
     return Card(
       elevation: 4,
-      shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.all(16),
@@ -307,7 +291,7 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Estatísticas da Base',
+              'Dados Atuais',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -318,8 +302,10 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildEstatisticaCard('Famílias', _totalFamilias, Icons.category),
-                _buildEstatisticaCard('Espécies', _totalEspecies, Icons.eco),
+                _buildEstatisticaCard(
+                    'Famílias', _totalFamilias, Icons.category),
+                _buildEstatisticaCard(
+                    'Espécies', _totalEspecies, Icons.science),
               ],
             ),
           ],
@@ -345,7 +331,6 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
 
     return Card(
       elevation: 2,
-      shadowColor: Colors.black12,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         decoration: BoxDecoration(
@@ -357,7 +342,8 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
           children: [
             Icon(icon, color: iconColor),
             SizedBox(width: 12),
-            Expanded(child: Text(_status, style: TextStyle(color: Colors.black87))),
+            Expanded(
+                child: Text(_status, style: TextStyle(color: Colors.black87))),
           ],
         ),
       ),
@@ -367,7 +353,6 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
   Widget _buildActionCard() {
     return Card(
       elevation: 4,
-      shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.all(16),
@@ -375,7 +360,7 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Gerenciar Taxonomia',
+              'Gerenciar Base de Dados',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -384,35 +369,36 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
             ),
             SizedBox(height: 8),
             Text(
-              'Atualize a base de dados com as famílias e espécies do REFLORA',
+              'Atualize a base local com os dados consolidados do REFLORA (CSV)',
               style: TextStyle(color: Colors.grey.shade600),
             ),
             SizedBox(height: 16),
-            // Botão Importar (verde)
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
-                onPressed: _importando ? null : _importarReflora,
+                onPressed: _importando ? null : _importarDados,
                 icon: _importando
                     ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor:
+                    AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
                     : Icon(Icons.cloud_download),
                 label: Text(
-                  _importando ? 'Importando...' : 'Importar do REFLORA',
+                  _importando
+                      ? 'Importando Dados...'
+                      : 'Importar Dados do GitHub',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green.shade700,
                   foregroundColor: Colors.white,
                   elevation: 4,
-                  shadowColor: Colors.green.shade700.withOpacity(0.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -420,7 +406,6 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
               ),
             ),
             SizedBox(height: 12),
-            // Botão Limpar (vermelho delineado)
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -452,7 +437,6 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
   Widget _buildInfoCard() {
     return Card(
       elevation: 4,
-      shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.all(16),
@@ -460,7 +444,7 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Sobre o REFLORA',
+              'Sobre os Dados',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -468,11 +452,11 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
               ),
             ),
             SizedBox(height: 12),
-            _buildInfoItem('🌿', 'Dados oficiais da Flora do Brasil 2020'),
-            _buildInfoItem('📊', 'Mais de 300 famílias e 30.000 espécies'),
-            _buildInfoItem('⚡', 'Busca em tempo real quando online'),
+            _buildInfoItem('🌿', 'Dados consolidados da Flora do Brasil'),
+            _buildInfoItem('📊', 'Famílias e espécies catalogadas'),
+            _buildInfoItem('📦', 'Fonte: GitHub - reflora_data'),
             _buildInfoItem('💾', 'Funciona offline após importação'),
-            _buildInfoItem('🔄', 'Atualize periodicamente para dados recentes'),
+            _buildInfoItem('🔄', 'Atualize periodicamente'),
           ],
         ),
       ),
@@ -501,10 +485,7 @@ class _AdminTaxonomiaScreenState extends State<AdminTaxonomiaScreen> {
         ),
         Text(
           titulo,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey.shade600,
-          ),
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
         ),
       ],
     );

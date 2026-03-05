@@ -10,7 +10,7 @@ class DatabaseHelper {
   factory DatabaseHelper() => _instance;
   static Database? _database;
 
-  static const int _databaseVersion = 8;
+  static const int _databaseVersion = 9;
 
   DatabaseHelper._internal();
 
@@ -77,6 +77,16 @@ class DatabaseHelper {
           await _createTaxonomiaTables(db);
           await _createTaxonomiaIndexes(db);
           print('✅ Tabelas de taxonomia criadas na migração v8');
+          break;
+
+        case 9:
+          await _safeAddColumn(
+              db,
+              'arvores',
+              'numero_fuste',
+              'INTEGER NOT NULL DEFAULT 1'
+          );
+          print('✅ Coluna numero_fuste adicionada na tabela arvores (migração v9)');
           break;
       }
     }
@@ -199,6 +209,7 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         parcela_id INTEGER NOT NULL,
         numero_arvore INTEGER NOT NULL,
+        numero_fuste INTEGER NOT NULL,
         codigo TEXT NOT NULL,
         x REAL NOT NULL,
         y REAL NOT NULL,
@@ -258,16 +269,15 @@ class DatabaseHelper {
   Future<int> insertFamilia(String nome) async {
     final db = await database;
     try {
-      return await db.insert('familias', {'nome': nome});
-    } catch (e) {
-      final result = await db.query(
-          'familias',
-          where: 'nome = ?',
-          whereArgs: [nome]
+      return await db.insert(
+        'familias',
+        {'nome': nome},
+        conflictAlgorithm: ConflictAlgorithm.ignore,
       );
-      if (result.isNotEmpty) {
-        return result.first['id'] as int;
-      }
+    } catch (e) {
+      // Se falhar, tenta obter o ID da existente
+      final id = await getFamiliaId(nome);
+      if (id != -1) return id;
       rethrow;
     }
   }
@@ -841,5 +851,18 @@ class DatabaseHelper {
       await _createCapHistoricoTable(db);
       await _createCapHistoricoIndexes(db);
     }
+  }
+
+  Future<int> getFamiliaId(String nome) async {
+    final db = await database;
+    final result = await db.query(
+      'familias',
+      where: 'nome = ?',
+      whereArgs: [nome],
+    );
+    if (result.isNotEmpty) {
+      return result.first['id'] as int;
+    }
+    return -1;
   }
 }

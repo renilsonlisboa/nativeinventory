@@ -1,43 +1,43 @@
-﻿Bloco,Parcela,Faixa,Arvore,Código,X,Y,Nome_comum,Nome_Cientifico,Gênero,Familia,CAP_2005,CAP_2008,CAP_2011,CAP_2014,CAP_2017,HT,HC
-1,1,1,1,0,4,4.7,Jasmim-verdadeiro,Psychotria vellosiana Benth.,Psychotria,Rubiaceae,63.3,66,68.1,70.5,76,17,7
-1,1,1,2,1,8.5,4.7,Araucária,Araucaria angustifolia (Bertol.) Kuntze,Araucaria,Araucariaceae,129,132,133.4,134.3,135.8,21,13
-1,1,1,2,2,8.5,4.7,Araucária,Araucaria angustifolia (Bertol.) Kuntze,Araucaria,Araucariaceae,77.2,79.5,83.8,98.1,89.4,20,10
-1,1,1,3,0,7,9.9,Araucária,Araucaria angustifolia (Bertol.) Kuntze,Araucaria,Araucariaceae,184,186,192.6,197,200.11,25,15
-1,1,1,4,0,3.5,13.8,Saboneteira,Quillaja lancifolia D.Don,Quillaja,Quillajaceae,52.1,52.1,52.8,52.4,52.7,13,3
-1,1,1,5,0,9.5,13.55,Araucária,Araucaria angustifolia (Bertol.) Kuntze,Araucaria,Araucariaceae,145.8,150,152.5,155,157,20.5,13
-1,1,1,6,0,6,17.6,Aroeira-branca,Lithraea molleoides (Vell.) Engl.,Lithraea,Anacardiaceae,75.6,79.5,85.2,89.7,94.9,10,3.5
-1,1,1,7,0,7.7,19.25,Aroeira-branca,Lithraea molleoides (Vell.) Engl.,Lithraea,Anacardiaceae,93.5,98,102.4,104.4,108.8,12,2.5
-1,1,1,8,0,3,22.3,Aroeira-branca,Lithraea molleoides (Vell.) Engl.,Lithraea,Anacardiaceae,39.4,43,46.8,52,59.6,10,6
-1,1,1,9,0,0.5,22.1,Vacum,Allophylus edulis (A.St.-Hil. et al.) Hieron. ex Niederl.,Allophylus,Sapindaceae,38.7,38.7,38,Morta 2014,Morta 2014,10,Morta 2014
-1,1,1,10,1,1,24,Capororocão,Myrsine umbellata Mart.,Myrsine,Primulaceae,43,44.5,45.9,46.8,49.2,12,7
-1,1,1,10,2,1,24,Capororocão,Myrsine umbellata Mart.,Myrsine,Primulaceae,41,42,42.1,43.2,43.8,11.5,9
-1,1,1,11,0,5,29.95,Capororocão,Myrsine umbellata Mart.,Myrsine,Primulaceae,33.3,33.3,33.3,33.3,33.4,11,3
-1,1,1,12,0,6.5,30.2,Jacarandá,Dalbergia brasiliensis Vogel,Dalbergia,Fabaceae,80.8,82,81.9,82.1,82.7,15,3
-1,1,1,13,0,5.3,31.2,Capororocão,Myrsine umbellata Mart.,Myrsine,Primulaceae,46.6,46.6,47,47,47.6,10,5
-1,1,1,14,0,4,32.9,Mamica-de-porca,Zanthoxylum rhoifolium Lam.,Zanthoxylum,Rutaceae,32.2,36.5,40.5,42,43.5,11,6
-1,1,1,15,0,0.1,38.2,Carne-de-vaca,Clethra scabra Pers.,Clethra,Clethraceae,33.6,37.5,41.2,45.9,53,10,6
-1,1,1,16,0,2,38.3,Aroeira-branca,Lithraea molleoides (Vell.) Engl.,Lithraea,Anacardiaceae,41.7,43.8,44.9,45.9,47.8,8,2.5
-1,1,1,17,0,7,38.7,Capororocão,Myrsine umbellata Mart.,Myrsine,Primulaceae,59.8,61,61.9,61.9,61.9,12,5
-1,1,1,18,1,9.8,35.8,Açoita-cavalo,Luehea divaricata Mart.,Luehea,Malvaceae,71,72.7,75.2,79.1,84,11,5
-1,1,1,18,2,9.8,35.8,Açoita-cavalo,Luehea divaricata Mart.,Luehea,Malvaceae,57.1,57.5,57.6,57.6,57.6,10,2
-1,1,1,18,2,9.8,35.8,Açoita-cavalo,Luehea divaricata Mart.,Luehea,Malvaceae,59.7,61.5,63.4,65.9,68.2,10,4
-1,1,1,19,0,10,40.25,Carne-de-vaca,Clethra scabra Pers.,Clethra,Clethraceae,82.2,87.5,94.5,99.8,106.1,6,2
-1,1,1,20,0,6,41.9,Jerivá,Syagrus romanzoffiana (Cham.) Glassman,Syagrus,Arecaceae,74,74,73.9,73.9,74.6,13,15
-1,1,1,21,0,3,42,Araucária,Araucaria angustifolia (Bertol.) Kuntze,Araucaria,Araucariaceae,190,195,199.6,203.5,209.4,22,11
-1,1,1,22,0,6.5,47.85,Jasmim-verdadeiro,Psychotria vellosiana Benth.,Psychotria,Rubiaceae,43.3,43.5,43.5,43.5,45.7,12,12
-1,1,1,658,0,5.8,10.2,Capororocão,Myrsine umbellata Mart.,Myrsine,Primulaceae,31.8,32.5,32.5,32.5,32.5,14,6
-1,1,1,659,0,1,12.5,Guaçatunga-preta,Casearia sylvestris Sw.,Casearia,Salicaceae,36.7,40,45.8,51.6,58.3,14,5
-1,1,1,660,0,0,12.7,Aroeira-branca,Lithraea molleoides (Vell.) Engl.,Lithraea,Anacardiaceae,34,36.5,38.6,41.3,45.1,13,3
-1,1,1,695,0,6,5,Bugreiro,Lithraea brasiliensis Marchand,Lithraea,Anacardiaceae,Ingresso 2008,34.5,36.3,37.5,39.8,8,5
-1,1,1,696,0,2.7,8,Bugreiro,Lithraea brasiliensis Marchand,Lithraea,Anacardiaceae,Ingresso 2008,32,33.1,34.4,36.1,11,3
-1,1,1,697,0,9.5,14,Ameixeira,Eriobotrya japonica (Thunb.) Lindl.,Eriobotrya,Rosaceae,Ingresso 2008,37,37,37,37.3,7,7
-1,1,1,698,1,3,21.3,Aroeira-branca,Lithraea molleoides (Vell.) Engl.,Lithraea,Anacardiaceae,Ingresso 2008,31.5,35,40.9,47.3,10,7
-1,1,1,699,0,10,28.8,Capororocão,Myrsine umbellata Mart.,Myrsine,Primulaceae,Ingresso 2008,31.5,32.6,33.5,34,7,9
-1,1,1,747,0,3.7,8.5,Jasmim-verdadeiro,Psychotria vellosiana Benth.,Psychotria,Rubiaceae,Ingresso 2011,Ingresso 2011,34.5,36.6,38.9,Ingresso 2011,6
-1,1,1,748,0,2,31,Capororocão,Myrsine umbellata Mart.,Myrsine,Primulaceae,Ingresso 2011,Ingresso 2011,36,38.3,43.2,Ingresso 2011,8
-1,1,1,759,0,2.3,30.5,Mamica-graúda,Zanthoxylum riedelianum Engl.,Zanthoxylum,Rutaceae,Ingresso 2014,Ingresso 2014,Ingresso 2014,33.9,45.4,Ingresso 2014,5
-1,1,1,760,0,5,34.5,Guaçatunga-graúda,Casearia lasiophylla Eichler,Casearia,Salicaceae,Ingresso 2014,Ingresso 2014,Ingresso 2014,31.6,37,Ingresso 2014,10
-1,1,1,761,0,5,41,Bugreiro,Lithraea brasiliensis Marchand,Lithraea,Anacardiaceae,Ingresso 2014,Ingresso 2014,Ingresso 2014,32.4,34,Ingresso 2014,3
-1,1,1,762,0,3,45,Ameixeira,Eriobotrya japonica (Thunb.) Lindl.,Eriobotrya,Rosaceae,Ingresso 2014,Ingresso 2014,Ingresso 2014,33.2,37.5,Ingresso 2014,4
-1,1,1,763,0,2,46.2,Bugreiro,Lithraea brasiliensis Marchand,Lithraea,Anacardiaceae,Ingresso 2014,Ingresso 2014,Ingresso 2014,40.8,48.7,Ingresso 2014,5
-1,1,1,826,0,5.6,42.7,Ameixeira,Eriobotrya japonica (Thunb.) Lindl.,Eriobotrya,Rosaceae,Ingresso 2017,Ingresso 2017,Ingresso 2017,Ingresso 2017,31.5,Ingresso 2017,6
+﻿Bloco;Parcela;Faixa;Arvore;Código;X;Y;Familia;Nome_Cientifico;Nome_comum;CAP_2005;CAP_2008;CAP_2011;CAP_2014;CAP_2017;HT;HC
+1;1;1;1;0;4;4.7;Rubiaceae;Psychotria vellosiana Benth.;Jasmim-verdadeiro;63.3;66;68.1;70.5;76;17;7
+1;1;1;2;1;8.5;4.7;Araucariaceae;Araucaria angustifolia (Bertol.) Kuntze;Araucária;129;132;133.4;134.3;135.8;21;13
+1;1;1;2;2;8.5;4.7;Araucariaceae;Araucaria angustifolia (Bertol.) Kuntze;Araucária;77.2;79.5;83.8;98.1;89.4;20;10
+1;1;1;3;0;7;9.9;Araucariaceae;Araucaria angustifolia (Bertol.) Kuntze;Araucária;184;186;192.6;197;200.11;25;15
+1;1;1;4;0;3.5;13.8;Quillajaceae;Quillaja lancifolia D.Don;Saboneteira;52.1;52.1;52.8;52.4;52.7;13;3
+1;1;1;5;0;9.5;13.55;Araucariaceae;Araucaria angustifolia (Bertol.) Kuntze;Araucária;145.8;150;152.5;155;157;20.5;13
+1;1;1;6;0;6;17.6;Anacardiaceae;Lithraea molleoides (Vell.) Engl.;Aroeira-branca;75.6;79.5;85.2;89.7;94.9;10;3.5
+1;1;1;7;0;7.7;19.25;Anacardiaceae;Lithraea molleoides (Vell.) Engl.;Aroeira-branca;93.5;98;102.4;104.4;108.8;12;2.5
+1;1;1;8;0;3;22.3;Anacardiaceae;Lithraea molleoides (Vell.) Engl.;Aroeira-branca;39.4;43;46.8;52;59.6;10;6
+1;1;1;9;0;0.5;22.1;Sapindaceae;Allophylus edulis (A.St.-Hil. et al.) Hieron. ex Niederl.;Vacum;38.7;38.7;38;Morta 2014;Morta 2014;10;Morta 2014
+1;1;1;10;1;1;24;Primulaceae;Myrsine umbellata Mart.;Capororocão;43;44.5;45.9;46.8;49.2;12;7
+1;1;1;10;2;1;24;Primulaceae;Myrsine umbellata Mart.;Capororocão;41;42;42.1;43.2;43.8;11.5;9
+1;1;1;11;0;5;29.95;Primulaceae;Myrsine umbellata Mart.;Capororocão;33.3;33.3;33.3;33.3;33.4;11;3
+1;1;1;12;0;6.5;30.2;Fabaceae;Dalbergia brasiliensis Vogel;Jacarandá;80.8;82;81.9;82.1;82.7;15;3
+1;1;1;13;0;5.3;31.2;Primulaceae;Myrsine umbellata Mart.;Capororocão;46.6;46.6;47;47;47.6;10;5
+1;1;1;14;0;4;32.9;Rutaceae;Zanthoxylum rhoifolium Lam.;Mamica-de-porca;32.2;36.5;40.5;42;43.5;11;6
+1;1;1;15;0;0.1;38.2;Clethraceae;Clethra scabra Pers.;Carne-de-vaca;33.6;37.5;41.2;45.9;53;10;6
+1;1;1;16;0;2;38.3;Anacardiaceae;Lithraea molleoides (Vell.) Engl.;Aroeira-branca;41.7;43.8;44.9;45.9;47.8;8;2.5
+1;1;1;17;0;7;38.7;Primulaceae;Myrsine umbellata Mart.;Capororocão;59.8;61;61.9;61.9;61.9;12;5
+1;1;1;18;1;9.8;35.8;Malvaceae;Luehea divaricata Mart.;Açoita-cavalo;71;72.7;75.2;79.1;84;11;5
+1;1;1;18;2;9.8;35.8;Malvaceae;Luehea divaricata Mart.;Açoita-cavalo;57.1;57.5;57.6;57.6;57.6;10;2
+1;1;1;18;2;9.8;35.8;Malvaceae;Luehea divaricata Mart.;Açoita-cavalo;59.7;61.5;63.4;65.9;68.2;10;4
+1;1;1;19;0;10;40.25;Clethraceae;Clethra scabra Pers.;Carne-de-vaca;82.2;87.5;94.5;99.8;106.1;6;2
+1;1;1;20;0;6;41.9;Arecaceae;Syagrus romanzoffiana (Cham.) Glassman;Jerivá;74;74;73.9;73.9;74.6;13;15
+1;1;1;21;0;3;42;Araucariaceae;Araucaria angustifolia (Bertol.) Kuntze;Araucária;190;195;199.6;203.5;209.4;22;11
+1;1;1;22;0;6.5;47.85;Rubiaceae;Psychotria vellosiana Benth.;Jasmim-verdadeiro;43.3;43.5;43.5;43.5;45.7;12;12
+1;1;1;658;0;5.8;10.2;Primulaceae;Myrsine umbellata Mart.;Capororocão;31.8;32.5;32.5;32.5;32.5;14;6
+1;1;1;659;0;1;12.5;Salicaceae;Casearia sylvestris Sw.;Guaçatunga-preta;36.7;40;45.8;51.6;58.3;14;5
+1;1;1;660;0;0;12.7;Anacardiaceae;Lithraea molleoides (Vell.) Engl.;Aroeira-branca;34;36.5;38.6;41.3;45.1;13;3
+1;1;1;695;0;6;5;Anacardiaceae;Lithraea brasiliensis Marchand;Bugreiro;Ingresso 2008;34.5;36.3;37.5;39.8;8;5
+1;1;1;696;0;2.7;8;Anacardiaceae;Lithraea brasiliensis Marchand;Bugreiro;Ingresso 2008;32;33.1;34.4;36.1;11;3
+1;1;1;697;0;9.5;14;Rosaceae;Eriobotrya japonica (Thunb.) Lindl.;Ameixeira;Ingresso 2008;37;37;37;37.3;7;7
+1;1;1;698;1;3;21.3;Anacardiaceae;Lithraea molleoides (Vell.) Engl.;Aroeira-branca;Ingresso 2008;31.5;35;40.9;47.3;10;7
+1;1;1;699;0;10;28.8;Primulaceae;Myrsine umbellata Mart.;Capororocão;Ingresso 2008;31.5;32.6;33.5;34;7;9
+1;1;1;747;0;3.7;8.5;Rubiaceae;Psychotria vellosiana Benth.;Jasmim-verdadeiro;Ingresso 2011;Ingresso 2011;34.5;36.6;38.9;Ingresso 2011;6
+1;1;1;748;0;2;31;Primulaceae;Myrsine umbellata Mart.;Capororocão;Ingresso 2011;Ingresso 2011;36;38.3;43.2;Ingresso 2011;8
+1;1;1;759;0;2.3;30.5;Rutaceae;Zanthoxylum riedelianum Engl.;Mamica-graúda;Ingresso 2014;Ingresso 2014;Ingresso 2014;33.9;45.4;Ingresso 2014;5
+1;1;1;760;0;5;34.5;Salicaceae;Casearia lasiophylla Eichler;Guaçatunga-graúda;Ingresso 2014;Ingresso 2014;Ingresso 2014;31.6;37;Ingresso 2014;10
+1;1;1;761;0;5;41;Anacardiaceae;Lithraea brasiliensis Marchand;Bugreiro;Ingresso 2014;Ingresso 2014;Ingresso 2014;32.4;34;Ingresso 2014;3
+1;1;1;762;0;3;45;Rosaceae;Eriobotrya japonica (Thunb.) Lindl.;Ameixeira;Ingresso 2014;Ingresso 2014;Ingresso 2014;33.2;37.5;Ingresso 2014;4
+1;1;1;763;0;2;46.2;Anacardiaceae;Lithraea brasiliensis Marchand;Bugreiro;Ingresso 2014;Ingresso 2014;Ingresso 2014;40.8;48.7;Ingresso 2014;5
+1;1;1;826;0;5.6;42.7;Rosaceae;Eriobotrya japonica (Thunb.) Lindl.;Ameixeira;Ingresso 2017;Ingresso 2017;Ingresso 2017;Ingresso 2017;31.5;Ingresso 2017;6
