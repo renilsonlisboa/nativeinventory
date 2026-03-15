@@ -23,15 +23,24 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   final _formKey = GlobalKey<FormState>();
   final _numeroController = TextEditingController();
   final _fusteController = TextEditingController();
-  final _codigoController = TextEditingController();
   final _xController = TextEditingController();
   final _yController = TextEditingController();
   final _familiaController = TextEditingController();
   final _nomeCientificoController = TextEditingController();
+  final _nomePopularController = TextEditingController();
   final _dapController = TextEditingController();
+  final _hcController = TextEditingController();
   final _htController = TextEditingController();
 
-  double _dapMinimo = 10.0;
+  // Variável para o dropdown de código
+  int? _selectedCodigo;
+  int? _selectedFormaFuste;
+  int? _selectedPosiSoc;
+  int? _selectedFito;
+  int? _selectedPosiCopa;
+  int? _selectedFormaCopa;
+
+  double _dapMinimo = 31.4;
   bool _dapAbaixoMinimo = false;
   int _anoInventario = DateTime.now().year;
 
@@ -56,19 +65,23 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     if (widget.arvore != null) {
       _numeroController.text = widget.arvore!.numeroArvore.toString();
       _fusteController.text = widget.arvore!.numeroFuste.toString();
-      _codigoController.text = widget.arvore!.codigo;
+      _selectedCodigo = int.tryParse(widget.arvore!.codigo);
       _xController.text = widget.arvore!.x.toString();
       _yController.text = widget.arvore!.y.toString();
       _familiaController.text = widget.arvore!.familia;
       _nomeCientificoController.text = widget.arvore!.nomeCientifico;
+      _familiaSelecionada = widget.arvore!.familia;
 
-      // CORREÇÃO: Converter CAP para DAP (CAP = DAP * π)
-      final dap = widget.arvore!.cap / 3.14159;
+      final dap = widget.arvore!.cap;
       _dapController.text = dap.toStringAsFixed(2);
-
+      _hcController.text = widget.arvore!.hc.toString();
       _htController.text = widget.arvore!.ht.toString();
 
-      _familiaSelecionada = widget.arvore!.familia;
+      _selectedFormaFuste = (widget.arvore!.formaFuste);
+      _selectedPosiSoc = (widget.arvore!.posiSoc);
+      _selectedFito = (widget.arvore!.fitossanidade);
+      _selectedPosiCopa = (widget.arvore!.posiCopa);
+      _selectedFormaCopa = (widget.arvore!.formaCopa);
     }
   }
 
@@ -188,7 +201,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     final inventario = await DatabaseHelper().getInventario(widget.inventarioId);
     if (inventario != null) {
       setState(() {
-        _dapMinimo = inventario.dapMinimo;
+        _dapMinimo = inventario.dapMinimo * 3.14;
         _anoInventario = inventario.ano;
       });
     }
@@ -220,7 +233,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       try {
         // CORREÇÃO: Usar conversões seguras
         final dapInserido = _parseDoubleSafe(_dapController.text);
-        final cap = dapInserido * 3.14159; // Converter DAP para CAP
+        final cap = dapInserido;
 
         // Verificar se o DAP está abaixo do mínimo
         if (dapInserido < _dapMinimo) {
@@ -230,20 +243,25 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           }
         }
 
-        // CORREÇÃO: Usar funções de conversão segura
         final arvore = Arvore(
           id: widget.arvore?.id ?? 0,
           parcelaId: widget.parcelaId,
           numeroArvore: _parseIntSafe(_numeroController.text),
           numeroFuste: _parseIntSafe(_fusteController.text),
-          codigo: _codigoController.text,
+          codigo: _selectedCodigo?.toString() ?? '',
           x: _parseDoubleSafe(_xController.text),
           y: _parseDoubleSafe(_yController.text),
           familia: _familiaController.text,
           nomeCientifico: _nomeCientificoController.text,
+          nomePopular: _nomePopularController.text,
           cap: cap,
-          hc: 0.0,
+          hc: _parseDoubleSafe(_hcController.text),
           ht: _parseDoubleSafe(_htController.text),
+          formaFuste: _selectedFormaFuste,
+          posiSoc: _selectedPosiSoc,
+          fitossanidade: _selectedFito,
+          formaCopa: _selectedFormaCopa,
+          posiCopa: _selectedPosiCopa,
         );
 
         final dbHelper = DatabaseHelper();
@@ -287,17 +305,17 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
             children: [
               Icon(Icons.warning, color: Colors.orange.shade700),
               SizedBox(width: 8),
-              Text('DAP Abaixo do Mínimo'),
+              Text('CAP Abaixo do Mínimo'),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('O DAP informado (${dapInserido.toStringAsFixed(1)} cm) é menor que o DAP mínimo do inventário (${_dapMinimo.toStringAsFixed(1)} cm).'),
-              SizedBox(height: 8),
+              Text('O CAP informado (${dapInserido.toStringAsFixed(1)} cm) é menor que o CAP mínimo do inventário (${_dapMinimo.toStringAsFixed(1)} cm).'),
+              SizedBox(height: 7),
               Text(
-                'Árvores com DAP abaixo do mínimo normalmente não são incluídas no inventário.',
+                'Árvores com CAP abaixo do mínimo normalmente não são incluídas no inventário.',
                 style: TextStyle(fontStyle: FontStyle.italic),
               ),
               SizedBox(height: 8),
@@ -378,7 +396,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         TextFormField(
           controller: _nomeCientificoController,
           focusNode: _nomeCientificoFocusNode,
-          enabled: _familiaSelecionada.isNotEmpty,
           decoration: InputDecoration(
             labelText: 'Espécie Botânica',
             border: OutlineInputBorder(
@@ -587,8 +604,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                           Expanded(
                             child: Text(
                               _dapAbaixoMinimo
-                                  ? 'DAP abaixo do mínimo (${_dapMinimo} cm)'
-                                  : 'DAP mínimo do inventário: ${_dapMinimo} cm',
+                                  ? 'CAP abaixo do mínimo (${_dapMinimo.toStringAsFixed(1)} cm)'
+                                  : 'CAP mínimo do inventário: ${_dapMinimo.toStringAsFixed(1)} cm',
                               style: TextStyle(
                                 color: _dapAbaixoMinimo ? Colors.orange.shade800 : Colors.green.shade800,
                                 fontWeight: FontWeight.w500,
@@ -601,7 +618,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                   ),
                   SizedBox(height: 16),
 
-                  // Campos do formulário (agrupados em um card)
                   Card(
                     elevation: 4,
                     shadowColor: Colors.black26,
@@ -628,8 +644,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               return null;
                             },
                           ),
-
                           SizedBox(height: 16),
+
                           _buildTextField(
                             controller: _fusteController,
                             label: 'Número do Fuste',
@@ -637,7 +653,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             keyboardType: TextInputType.number,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Por favor, insira o número da árvore';
+                                return 'Por favor, insira o número do fuste';
                               }
                               final numero = _parseIntSafe(value);
                               if (numero <= 0) {
@@ -648,17 +664,50 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                           ),
                           SizedBox(height: 16),
 
-                          _buildTextField(
-                            controller: _codigoController,
-                            label: 'Código',
-                            icon: Icons.tag,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Por favor, insira o código';
-                              }
-                              return null;
-                            },
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedCodigo,
+                              decoration: InputDecoration(
+                                labelText: 'Código / Tipo',
+                                labelStyle: TextStyle(color: Colors.grey.shade700),
+                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.transparent,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 0, child: Text('0 - Árvore Normal')),
+                                DropdownMenuItem(value: 1, child: Text('1 - Bifurcada Principal')),
+                                DropdownMenuItem(value: 2, child: Text('2 - Bifurcada Secundária')),
+                                DropdownMenuItem(value: 99, child: Text('99 - Morta')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedCodigo = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Selecione um código';
+                                }
+                                return null;
+                              },
+                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+                              isExpanded: true,
+                              dropdownColor: Colors.white,
+                              style: TextStyle(color: Colors.black87, fontSize: 16),
+                            ),
                           ),
+
                           SizedBox(height: 16),
 
                           _buildTextField(
@@ -703,16 +752,28 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                           SizedBox(height: 16),
 
                           _buildTextField(
+                            controller: _nomePopularController,
+                            label: 'Nome Popular',
+                            icon: Icons.pin_drop,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o Nome Popular';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          SizedBox(height: 16),
+                          _buildTextField(
                             controller: _dapController,
-                            label: 'DAP (cm)',
+                            label: 'CAP (cm)',
                             icon: Icons.straighten,
                             keyboardType: TextInputType.numberWithOptions(decimal: true),
                             onChanged: _validarDAP,
-                            errorText: _dapAbaixoMinimo ? 'DAP abaixo do mínimo' : null,
-                            helperText: 'Será convertido para CAP automaticamente',
+                            errorText: _dapAbaixoMinimo ? 'CAP abaixo do mínimo' : null,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Por favor, insira o DAP';
+                                return 'Por favor, insira o CAP';
                               }
                               if (_parseDoubleSafe(value) == 0.0 && value != '0') {
                                 return 'Por favor, insira um número válido';
@@ -720,6 +781,24 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               return null;
                             },
                           ),
+                          SizedBox(height: 16),
+
+                          _buildTextField(
+                            controller: _hcController,
+                            label: 'HC (m)',
+                            icon: Icons.height,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o HC';
+                              }
+                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
+                                return 'Por favor, insira um número válido';
+                              }
+                              return null;
+                            },
+                          ),
+
                           SizedBox(height: 16),
 
                           _buildTextField(
@@ -736,6 +815,232 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               }
                               return null;
                             },
+                          ),
+
+                          SizedBox(height: 16),
+
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: DropdownButtonFormField<int>(
+                              initialValue: _selectedFormaFuste,
+                              decoration: InputDecoration(
+                                labelText: 'Forma do Fuste',
+                                labelStyle: TextStyle(color: Colors.grey.shade700),
+                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.transparent,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 1, child: Text('1 - Fuste Tortuoso')),
+                                DropdownMenuItem(value: 2, child: Text('2 - Fuste Levemente Torturoso')),
+                                DropdownMenuItem(value: 3, child: Text('3 - Fuste Reto')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedFormaFuste = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Selecione um código';
+                                }
+                                return null;
+                              },
+                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+                              isExpanded: true,
+                              dropdownColor: Colors.white,
+                              style: TextStyle(color: Colors.black87, fontSize: 16),
+                            ),
+                          ),
+                          SizedBox(height: 16),
+
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: DropdownButtonFormField<int>(
+                              initialValue: _selectedPosiSoc,
+                              decoration: InputDecoration(
+                                labelText: 'Estrato',
+                                labelStyle: TextStyle(color: Colors.grey.shade700),
+                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.transparent,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 1, child: Text('1 - Estrato Inferior')),
+                                DropdownMenuItem(value: 2, child: Text('2 - Estrato Médio')),
+                                DropdownMenuItem(value: 3, child: Text('3 - Estrato Superior')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedPosiSoc = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Selecione um código';
+                                }
+                                return null;
+                              },
+                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+                              isExpanded: true,
+                              dropdownColor: Colors.white,
+                              style: TextStyle(color: Colors.black87, fontSize: 16),
+                            ),
+                          ),
+                          SizedBox(height: 16),
+
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedFito,
+                              decoration: InputDecoration(
+                                labelText: 'Fitossanidade',
+                                labelStyle: TextStyle(color: Colors.grey.shade700),
+                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.transparent,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 1, child: Text('1 - Fitossanidade Ruim')),
+                                DropdownMenuItem(value: 2, child: Text('2 - Fitossanidade Média')),
+                                DropdownMenuItem(value: 3, child: Text('3 - Fitossanidade Boa')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedFito = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Selecione um código';
+                                }
+                                return null;
+                              },
+                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+                              isExpanded: true,
+                              dropdownColor: Colors.white,
+                              style: TextStyle(color: Colors.black87, fontSize: 16),
+                            ),
+                          ),
+
+                          SizedBox(height: 16),
+
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedPosiCopa,
+                              decoration: InputDecoration(
+                                labelText: 'Posição da Copa',
+                                labelStyle: TextStyle(color: Colors.grey.shade700),
+                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.transparent,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 1, child: Text('1 - Sem Iluminação Direta')),
+                                DropdownMenuItem(value: 2, child: Text('2 - Alguma Iluminação Natural')),
+                                DropdownMenuItem(value: 3, child: Text('3 - Iluminação Superior Parcial')),
+                                DropdownMenuItem(value: 4, child: Text('4 - Iluminação Superior Completa')),
+                                DropdownMenuItem(value: 5, child: Text('5 - Emergente')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedPosiCopa = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Selecione um código';
+                                }
+                                return null;
+                              },
+                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+                              isExpanded: true,
+                              dropdownColor: Colors.white,
+                              style: TextStyle(color: Colors.black87, fontSize: 16),
+                            ),
+                          ),
+                          SizedBox(height: 16),
+
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: DropdownButtonFormField<int>(
+                              value: _selectedFormaCopa,
+                              decoration: InputDecoration(
+                                labelText: 'Forma da Copa',
+                                labelStyle: TextStyle(color: Colors.grey.shade700),
+                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.transparent,
+                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 1, child: Text('1 - Forma Intolerável')),
+                                DropdownMenuItem(value: 2, child: Text('2 - Forma Pobre')),
+                                DropdownMenuItem(value: 3, child: Text('3 - Forma Tolerável')),
+                                DropdownMenuItem(value: 4, child: Text('4 - Boa Forma')),
+                                DropdownMenuItem(value: 5, child: Text('5 - Forma Perfeita')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedFormaCopa = value;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Selecione um código';
+                                }
+                                return null;
+                              },
+                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+                              isExpanded: true,
+                              dropdownColor: Colors.white,
+                              style: TextStyle(color: Colors.black87, fontSize: 16),
+                            ),
                           ),
                         ],
                       ),
@@ -817,7 +1122,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         helperStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
         filled: true,
         fillColor: Colors.white.withOpacity(0.9),
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       ),
       keyboardType: keyboardType,
       validator: validator,

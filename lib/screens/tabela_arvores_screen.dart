@@ -32,6 +32,9 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
   bool _isSearching = false;
   Timer? _debounceTimer;
 
+  // Altura fixa para as linhas (células)
+  static const double _rowHeight = 50;
+
   @override
   void initState() {
     super.initState();
@@ -173,116 +176,168 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
     }
   }
 
-  List<DataColumn> _buildColunas() {
+  /// Constrói a lista de cabeçalhos das colunas roláveis (todas exceto a primeira)
+  List<Widget> _buildScrollableHeaders() {
     final colunasBasicas = [
-      const DataColumn(label: Text('Nº', style: TextStyle(fontWeight: FontWeight.bold))),
-      const DataColumn(label: Text('Código', style: TextStyle(fontWeight: FontWeight.bold))),
-      const DataColumn(label: Text('X', style: TextStyle(fontWeight: FontWeight.bold))),
-      const DataColumn(label: Text('Y', style: TextStyle(fontWeight: FontWeight.bold))),
-      const DataColumn(label: Text('Família', style: TextStyle(fontWeight: FontWeight.bold))),
-      const DataColumn(label: Text('Nome Científico', style: TextStyle(fontWeight: FontWeight.bold))),
+      'Fuste',
+      'Código',
+      'X',
+      'Y',
+      'Família',
+      'Nome Científico',
+      'Nome Popular'
     ];
 
-    final colunasAnosHistoricos = _anosUnicos.where((ano) => ano != _anoAtual).map((ano) {
-      return DataColumn(
-        label: Text(
-          'CAP $ano',
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }).toList();
+    final headers = <Widget>[];
 
-    final colunasAtuais = [
-      DataColumn(
-        label: Text(
-          'CAP $_anoAtual',
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green),
-          textAlign: TextAlign.center,
-        ),
-      ),
-      const DataColumn(label: Text('HT', style: TextStyle(fontWeight: FontWeight.bold))),
-      const DataColumn(label: Text('Ações', style: TextStyle(fontWeight: FontWeight.bold))),
-    ];
+    // Colunas básicas
+    for (final label in colunasBasicas) {
+      headers.add(_buildHeaderCell(label));
+    }
 
-    return [...colunasBasicas, ...colunasAnosHistoricos, ...colunasAtuais];
+    // Colunas de anos históricos (exceto o atual)
+    for (final ano in _anosUnicos.where((a) => a != _anoAtual)) {
+      headers.add(_buildHeaderCell('CAP $ano', fontSize: 12));
+    }
+
+    // Colunas atuais (CAP atual, HT, Ações)
+    headers.add(_buildHeaderCell('CAP $_anoAtual', color: Colors.green, fontSize: 12));
+    headers.add(_buildHeaderCell('HC'));
+    headers.add(_buildHeaderCell('HT'));
+    headers.add(_buildHeaderCell('Fuste'));
+    headers.add(_buildHeaderCell('Estrato'));
+    headers.add(_buildHeaderCell('Fitos.'));
+    headers.add(_buildHeaderCell('Pos'));
+    headers.add(_buildHeaderCell('Forma'));
+    headers.add(_buildHeaderCell('Ações'));
+
+    return headers;
   }
 
-  DataCell _criarCelulaComClique(Widget child, Arvore arvore) {
-    return DataCell(
-      GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _editarArvore(arvore),
-        child: child,
+  /// Constrói uma célula de cabeçalho padronizada
+  Widget _buildHeaderCell(String text, {Color? color, double fontSize = 14}) {
+    return Container(
+      width: 100, // Largura fixa para todas as colunas
+      height: _rowHeight,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        color: Colors.blue.shade50,
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: color,
+          fontSize: fontSize,
+        ),
+        textAlign: TextAlign.center,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
 
-  List<DataCell> _buildCelulasComClique(Arvore arvore) {
+  /// Constrói a lista de células de dados para uma árvore (colunas roláveis)
+  List<Widget> _buildScrollableCellsForArvore(Arvore arvore) {
     final capsArvore = _capsPorArvore[arvore.id!] ?? {};
 
-    final celulasBasicas = [
-      _criarCelulaComClique(Text(arvore.numeroArvore.toString()), arvore),
-      _criarCelulaComClique(Text(arvore.codigo), arvore),
-      _criarCelulaComClique(Text(arvore.x.toStringAsFixed(2)), arvore),
-      _criarCelulaComClique(Text(arvore.y.toStringAsFixed(2)), arvore),
-      _criarCelulaComClique(Text(arvore.familia), arvore),
-      _criarCelulaComClique(Text(arvore.nomeCientifico), arvore),
-    ];
+    final cells = <Widget>[];
 
-    final anosHistoricos = _anosUnicos.where((ano) => ano != _anoAtual).toList();
-    final celulasAnosHistoricos = anosHistoricos.map((ano) {
+    cells.add(_buildDataCell(arvore.numeroFuste.toString(), arvore));
+    cells.add(_buildDataCell(arvore.codigo, arvore));
+    cells.add(_buildDataCell(arvore.x.toStringAsFixed(2), arvore));
+    cells.add(_buildDataCell(arvore.y.toStringAsFixed(2), arvore));
+    cells.add(_buildDataCell(arvore.familia, arvore, maxLines: 2));
+    cells.add(_buildDataCell(arvore.nomeCientifico, arvore, maxLines: 2));
+    cells.add(_buildDataCell(arvore.nomePopular ?? '-', arvore, maxLines: 2));
+
+    // Colunas de anos históricos
+    for (final ano in _anosUnicos.where((a) => a != _anoAtual)) {
       final cap = capsArvore[ano];
-      return _criarCelulaComClique(
-        cap != null
-            ? Text(
-          cap.toStringAsFixed(1),
+      cells.add(
+        _buildDataCell(
+          cap != null ? cap.toStringAsFixed(1) : '-',
+          arvore,
+          color: _getCorCrescimento(arvore.id!, ano),
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: _getCorCrescimento(arvore.id!, ano),
-          ),
-        )
-            : const Text(
-          '-',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
         ),
-        arvore,
       );
-    }).toList();
+    }
 
+    // Colunas atuais
     final capAtual = capsArvore[_anoAtual];
-    final celulasAtuais = [
-      _criarCelulaComClique(
-        capAtual != null
-            ? Text(
-          capAtual.toStringAsFixed(1),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.green,
-          ),
-        )
-            : const Text(
-          '-',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
-        ),
+    cells.add(
+      _buildDataCell(
+        capAtual != null ? capAtual.toStringAsFixed(1) : '-',
         arvore,
+        color: Colors.green,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
       ),
-      _criarCelulaComClique(Text(arvore.ht.toStringAsFixed(2)), arvore),
-      DataCell(
-        IconButton(
-          icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-          onPressed: () => _excluirArvore(arvore),
-          tooltip: 'Excluir',
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
+    );
+    cells.add(_buildDataCell(arvore.hc.toStringAsFixed(2), arvore));
+    cells.add(_buildDataCell(arvore.ht.toStringAsFixed(2), arvore));
+    cells.add(_buildDataCell(arvore.formaFuste == 0 ? '-' : arvore.formaFuste.toString(), arvore));
+    cells.add(_buildDataCell(arvore.posiSoc == 0 ? '-' : arvore.posiSoc.toString(), arvore));
+    cells.add(_buildDataCell(arvore.fitossanidade == 0 ? '-' : arvore.fitossanidade.toString(), arvore));
+    cells.add(_buildDataCell(arvore.posiCopa == 0 ? '-' : arvore.posiCopa.toString(), arvore));
+    cells.add(_buildDataCell(arvore.formaCopa == 0 ? '-' : arvore.formaCopa.toString(), arvore));
+    cells.add(_buildActionCell(arvore));
+    return cells;
+  }
+
+  /// Constrói uma célula de dados padronizada, que abre a edição ao ser clicada
+  Widget _buildDataCell(
+      String text,
+      Arvore arvore, {
+        Color? color,
+        FontWeight? fontWeight,
+        TextAlign textAlign = TextAlign.left,
+        int maxLines = 1,
+      }) {
+    return GestureDetector(
+      onTap: () => _editarArvore(arvore),
+      child: Container(
+        width: 100,
+        height: _rowHeight,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontWeight: fontWeight,
+            fontSize: 13,
+          ),
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
-    ];
+    );
+  }
 
-    return [...celulasBasicas, ...celulasAnosHistoricos, ...celulasAtuais];
+  /// Célula especial para a coluna de ações (apenas o botão de excluir)
+  Widget _buildActionCell(Arvore arvore) {
+    return Container(
+      width: 100,
+      height: _rowHeight,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: IconButton(
+        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+        onPressed: () => _excluirArvore(arvore),
+        tooltip: 'Excluir',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+      ),
+    );
   }
 
   Color _getCorCrescimento(int arvoreId, int ano) {
@@ -484,26 +539,75 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.vertical,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
                         child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: MaterialStateProperty.all(Colors.blue.shade50),
-                            dataRowColor: MaterialStateProperty.resolveWith<Color?>(
-                                  (Set<MaterialState> states) {
-                                if (states.contains(MaterialState.selected)) {
-                                  return Colors.green.shade100.withOpacity(0.5);
-                                }
-                                return null;
-                              },
-                            ),
-                            columns: _buildColunas(),
-                            rows: arvores.map((arvore) {
-                              return DataRow(
-                                cells: _buildCelulasComClique(arvore),
-                              );
-                            }).toList(),
+                          scrollDirection: Axis.vertical,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // --- COLUNA FIXA (esquerda) ---
+                              Column(
+                                children: [
+                                  // Cabeçalho da coluna fixa
+                                  Container(
+                                    width: 80, // largura um pouco menor para a coluna "Arv."
+                                    height: _rowHeight,
+                                    alignment: Alignment.center,
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade300),
+                                      color: Colors.blue.shade50,
+                                    ),
+                                    child: const Text(
+                                      'Arv.',
+                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  // Células da coluna fixa (número da árvore)
+                                  ...arvores.map((arvore) {
+                                    return GestureDetector(
+                                      onTap: () => _editarArvore(arvore),
+                                      child: Container(
+                                        width: 80,
+                                        height: _rowHeight,
+                                        alignment: Alignment.center,
+                                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Colors.grey.shade300),
+                                        ),
+                                        child: Text(
+                                          arvore.numeroArvore.toString(),
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ],
+                              ),
+
+                              // --- COLUNAS ROLÁVEIS (direita) ---
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Linha de cabeçalhos das colunas roláveis
+                                      Row(
+                                        children: _buildScrollableHeaders(),
+                                      ),
+                                      // Linhas de dados
+                                      ...arvores.map((arvore) {
+                                        return Row(
+                                          children: _buildScrollableCellsForArvore(arvore),
+                                        );
+                                      }).toList(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

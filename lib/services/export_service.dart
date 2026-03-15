@@ -28,7 +28,7 @@ class ExportService {
     return file;
   }
 
-  // Exportar para CSV com apenas colunas CAP_ANO
+  // Exportar para CSV com colunas CAP_ANO e novos campos ao final
   Future<void> exportToCsv(int inventarioId) async {
     final inventario = await _dbHelper.getInventario(inventarioId);
     if (inventario == null) {
@@ -37,32 +37,42 @@ class ExportService {
 
     final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
 
-    // Primeiro, coletar todos os anos únicos de CAP de todo o inventário
+    // Coletar todos os anos únicos de CAP
     final todosAnos = await _obterTodosAnosCap(inventarioId);
     final anosOrdenados = todosAnos.toList()..sort();
 
     List<List<dynamic>> csvData = [];
 
-    // Cabeçalho SEM coluna CAP individual
+    // Cabeçalho
     List<dynamic> cabecalho = [
       'Inventario',
       'Bloco',
       'Faixa',
       'Parcela',
-      'Numero_Arvore',
+      'Árvore',
       'Codigo',
       'X',
       'Y',
       'Familia',
       'Nome_Cientifico',
-      'HT',
-      // REMOVIDO: 'CAP' e 'HC'
     ];
 
-    // Adicionar apenas colunas CAP_ANO para cada ano histórico
+    // Colunas CAP por ano
     for (final ano in anosOrdenados) {
       cabecalho.add('CAP_$ano');
     }
+
+    // Coluna HT
+    cabecalho.add('HT');
+
+    // Novas colunas solicitadas (ao final)
+    cabecalho.addAll([
+      'Forma_Fuste',
+      'Posicao_Social',
+      'Fitossanidade',
+      'Forma_Copa',
+      'Posicao_Copa',
+    ]);
 
     csvData.add(cabecalho);
 
@@ -71,14 +81,12 @@ class ExportService {
       final arvores = await _dbHelper.getArvoresByParcela(parcela.id!);
 
       for (final arvore in arvores) {
-        // Obter histórico de CAP para esta árvore
         final historicoCap = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
         final capsPorAno = <int, double>{};
         for (final item in historicoCap) {
           capsPorAno[item.ano] = item.cap;
         }
 
-        // Linha SEM coluna CAP individual
         List<dynamic> linha = [
           inventario.nome,
           parcela.bloco,
@@ -90,15 +98,23 @@ class ExportService {
           arvore.y.toStringAsFixed(2),
           arvore.familia,
           arvore.nomeCientifico,
-          arvore.ht.toStringAsFixed(2),
-          // REMOVIDO: CAP atual e HC
         ];
 
-        // Adicionar valores CAP para cada ano histórico
+        // CAP por ano
         for (final ano in anosOrdenados) {
           final valorCap = capsPorAno[ano];
           linha.add(valorCap != null ? valorCap.toStringAsFixed(2) : '');
         }
+
+        // HT
+        linha.add(arvore.ht.toStringAsFixed(2));
+
+        // Novos campos
+        linha.add(arvore.formaFuste ?? '');
+        linha.add(arvore.posiSoc ?? '');
+        linha.add(arvore.fitossanidade ?? '');
+        linha.add(arvore.formaCopa ?? '');
+        linha.add(arvore.posiCopa ?? '');
 
         csvData.add(linha);
       }
@@ -113,7 +129,7 @@ class ExportService {
     await _shareFile(tempFile, 'Exportação CSV - ${inventario.nome}');
   }
 
-  // Exportar para XLSX com apenas colunas CAP_ANO
+  // Exportar para XLSX com colunas CAP_ANO e novos campos ao final
   Future<void> exportToXlsx(int inventarioId) async {
     final inventario = await _dbHelper.getInventario(inventarioId);
     if (inventario == null) {
@@ -126,30 +142,37 @@ class ExportService {
     final todosAnos = await _obterTodosAnosCap(inventarioId);
     final anosOrdenados = todosAnos.toList()..sort();
 
-    // Criar arquivo Excel
     var excel = Excel.createExcel();
     var sheet = excel['Inventario_${inventario.nome}'];
 
-    // Cabeçalho SEM coluna CAP individual
+    // Cabeçalho
     List<dynamic> cabecalho = [
       'Inventario',
       'Bloco',
       'Faixa',
       'Parcela',
-      'Numero_Arvore',
+      'Árvore',
       'Codigo',
       'X',
       'Y',
       'Familia',
       'Nome_Cientifico',
-      'HT',
-      // REMOVIDO: 'CAP' e 'HC'
     ];
 
-    // Adicionar apenas colunas CAP_ANO para cada ano histórico
     for (final ano in anosOrdenados) {
       cabecalho.add('CAP_$ano');
     }
+
+    cabecalho.add('HT');
+
+    // Novas colunas
+    cabecalho.addAll([
+      'Forma_Fuste',
+      'Posicao_Social',
+      'Fitossanidade',
+      'Forma_Copa',
+      'Posicao_Copa',
+    ]);
 
     sheet.appendRow(cabecalho);
 
@@ -158,14 +181,12 @@ class ExportService {
       final arvores = await _dbHelper.getArvoresByParcela(parcela.id!);
 
       for (final arvore in arvores) {
-        // Obter histórico de CAP para esta árvore
         final historicoCap = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
         final capsPorAno = <int, double>{};
         for (final item in historicoCap) {
           capsPorAno[item.ano] = item.cap;
         }
 
-        // Linha SEM coluna CAP individual
         List<dynamic> linha = [
           inventario.nome,
           parcela.bloco,
@@ -177,15 +198,21 @@ class ExportService {
           arvore.y,
           arvore.familia,
           arvore.nomeCientifico,
-          arvore.ht,
-          // REMOVIDO: CAP atual e HC
         ];
 
-        // Adicionar valores CAP para cada ano histórico
         for (final ano in anosOrdenados) {
           final valorCap = capsPorAno[ano];
           linha.add(valorCap ?? '');
         }
+
+        linha.add(arvore.ht);
+
+        // Novos campos
+        linha.add(arvore.formaFuste ?? '');
+        linha.add(arvore.posiSoc ?? '');
+        linha.add(arvore.fitossanidade ?? '');
+        linha.add(arvore.formaCopa ?? '');
+        linha.add(arvore.posiCopa ?? '');
 
         sheet.appendRow(linha);
       }
@@ -217,7 +244,7 @@ class ExportService {
     return todosAnos;
   }
 
-  // Exportar para SQL (mantido igual - aqui mantemos o CAP na tabela arvores pois é parte do modelo interno)
+  // Exportar para SQL (mantido sem alterações, mas pode ser ajustado se necessário)
   Future<void> exportToSql(int inventarioId) async {
     final inventario = await _dbHelper.getInventario(inventarioId);
     if (inventario == null) {
@@ -228,13 +255,11 @@ class ExportService {
 
     StringBuffer sql = StringBuffer();
 
-    // Comentário de cabeçalho
     sql.writeln('-- Exportação do Inventário: ${inventario.nome}');
     sql.writeln('-- Data: ${DateTime.now()}');
     sql.writeln('-- Total de Parcelas: ${parcelas.length}');
     sql.writeln();
 
-    // Inserir inventário
     sql.writeln('-- Dados do Inventário');
     sql.writeln("INSERT INTO inventarios (id, nome, numero_blocos, numero_faixas, numero_parcelas, data_criacao) VALUES (");
     sql.writeln("  ${inventario.id},");
@@ -246,7 +271,6 @@ class ExportService {
     sql.writeln(");");
     sql.writeln();
 
-    // Inserir parcelas
     sql.writeln('-- Dados das Parcelas');
     for (final parcela in parcelas) {
       sql.writeln("INSERT INTO parcelas (id, inventario_id, bloco, faixa, parcela, valor_arvores, concluida) VALUES (");
@@ -261,7 +285,6 @@ class ExportService {
     }
     sql.writeln();
 
-    // Inserir árvores
     sql.writeln('-- Dados das Árvores');
     int totalArvores = 0;
     for (final parcela in parcelas) {
@@ -282,7 +305,6 @@ class ExportService {
         sql.writeln("  ${arvore.ht}");
         sql.writeln(");");
 
-        // Inserir histórico de CAP
         final historicoCap = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
         for (final capItem in historicoCap) {
           sql.writeln("INSERT INTO arvores_cap_historico (arvore_id, ano, cap) VALUES (");
@@ -369,8 +391,14 @@ class ExportService {
           'y': arvore.y,
           'familia': arvore.familia,
           'nome_cientifico': arvore.nomeCientifico,
-          'ht': arvore.ht,
           'historico_cap': capsPorAno,
+          'ht': arvore.ht,
+          // Novos campos adicionados para consistência (opcional)
+          'forma_fuste': arvore.formaFuste,
+          'posicao_social': arvore.posiSoc,
+          'fitossanidade': arvore.fitossanidade,
+          'forma_copa': arvore.formaCopa,
+          'posicao_copa': arvore.posiCopa,
         });
       }
     }

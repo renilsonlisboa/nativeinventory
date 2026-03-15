@@ -10,7 +10,7 @@ class DatabaseHelper {
   factory DatabaseHelper() => _instance;
   static Database? _database;
 
-  static const int _databaseVersion = 9;
+  static const int _databaseVersion = 12;
 
   DatabaseHelper._internal();
 
@@ -22,12 +22,21 @@ class DatabaseHelper {
 
   Future<Database> _initDatabase() async {
     String path = join(await getDatabasesPath(), 'inventario.db');
-    return await openDatabase(
+
+    final db = await openDatabase(
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
     );
+
+    // GARANTE que a tabela está atualizada
+    await _ensureArvoresColumns(db);
+
+    return db;
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -86,7 +95,22 @@ class DatabaseHelper {
               'numero_fuste',
               'INTEGER NOT NULL DEFAULT 1'
           );
-          print('✅ Coluna numero_fuste adicionada na tabela arvores (migração v9)');
+          break;
+
+        case 10:
+          print('📋 Executando migração versão 10: adicionando colunas de fitossanidade');
+          await _safeAddColumn(db, 'arvores', 'formaFuste', 'INTEGER NOT NULL DEFAULT 0');
+          await _safeAddColumn(db, 'arvores', 'posiSoc', 'INTEGER NOT NULL DEFAULT 0');
+          await _safeAddColumn(db, 'arvores', 'fitossanidade', 'INTEGER NOT NULL DEFAULT 0');
+          await _safeAddColumn(db, 'arvores', 'posiCopa', 'INTEGER NOT NULL DEFAULT 0');
+          await _safeAddColumn(db, 'arvores', 'formaCopa', 'INTEGER NOT NULL DEFAULT 0');
+          print('✅ Colunas de fitossanidade adicionadas na tabela arvores (migração v10)');
+          break;
+
+        case 11:
+          print('📋 Executando migração versão 11: adicionando colunas de nome Popular');
+          await _safeAddColumn(db, 'arvores', 'nome_popular', 'TEXT NOT NULL');
+          print('✅ Colunas de fitossanidade adicionadas na tabela arvores (migração v10)');
           break;
       }
     }
@@ -215,9 +239,15 @@ class DatabaseHelper {
         y REAL NOT NULL,
         familia TEXT NOT NULL,
         nome_cientifico TEXT NOT NULL,
+        nome_popular TEXT NOT NULL,
         cap REAL NOT NULL DEFAULT 0,
         hc REAL DEFAULT 0,
         ht REAL,
+        formaFuste INTEGER NOT NULL DEFAULT 0,
+        posiSoc INTEGER NOT NULL DEFAULT 0,
+        fitossanidade INTEGER NOT NULL DEFAULT 0,
+        posiCopa INTEGER NOT NULL DEFAULT 0,
+        formaCopa INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (parcela_id) REFERENCES parcelas (id) ON DELETE CASCADE
       )
     ''');
@@ -462,7 +492,17 @@ class DatabaseHelper {
 
   Future<int> insertInventario(Inventario inventario) async {
     final db = await database;
-    return await db.insert('inventarios', inventario.toMap());
+    // Cria um map a partir do toMap() e remove a chave 'id' se existir
+    final map = Map<String, dynamic>.from(inventario.toMap());
+    map.remove('id'); // Remove o ID para evitar conflito com auto increment
+
+    try {
+      print('Inserindo inventário: $map');
+      return await db.insert('inventarios', map);
+    } catch (e, stack) {
+      print('❌ Erro ao inserir inventário: $e\n$stack');
+      rethrow;
+    }
   }
 
   Future<List<Inventario>> getInventarios() async {
@@ -499,11 +539,36 @@ class DatabaseHelper {
 
   Future<int> deleteInventario(int id) async {
     final db = await database;
-    return await db.delete(
-      'inventarios',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    int rowsAffected = 0;
+
+    await db.transaction((txn) async {
+      // Deletar histórico de CAP
+      await txn.rawDelete('''
+      DELETE FROM arvores_cap_historico 
+      WHERE arvore_id IN (
+        SELECT a.id FROM arvores a
+        INNER JOIN parcelas p ON a.parcela_id = p.id
+        WHERE p.inventario_id = ?
+      )
+    ''', [id]);
+
+      // Deletar árvores
+      await txn.rawDelete('''
+      DELETE FROM arvores 
+      WHERE parcela_id IN (
+        SELECT id FROM parcelas WHERE inventario_id = ?
+      )
+    ''', [id]);
+
+      // Deletar parcelas
+      await txn.delete('parcelas', where: 'inventario_id = ?', whereArgs: [id]);
+
+      // Deletar inventário
+      rowsAffected = await txn.delete('inventarios', where: 'id = ?', whereArgs: [id]);
+    });
+
+    print('🗑️ Inventário $id deletado. Linhas afetadas: $rowsAffected');
+    return rowsAffected;
   }
 
   // ========== MÉTODOS PARA PARCELAS ==========
@@ -611,10 +676,11 @@ class DatabaseHelper {
   }
 
   // ========== MÉTODOS PARA ÁRVORES ==========
-
   Future<int> insertArvore(Arvore arvore) async {
     final db = await database;
-    return await db.insert('arvores', arvore.toMap());
+    final map = Map<String, dynamic>.from(arvore.toMap());
+    map.remove('id'); // Remove o ID para evitar conflito
+    return await db.insert('arvores', map);
   }
 
   Future<void> insertArvores(List<Arvore> arvores) async {
@@ -864,5 +930,26 @@ class DatabaseHelper {
       return result.first['id'] as int;
     }
     return -1;
+  }
+
+  Future<void> _ensureArvoresColumns(Database db) async {
+    final columns = await db.rawQuery("PRAGMA table_info(arvores)");
+    final columnNames = columns.map((c) => c['name']).toSet();
+
+    final Map<String, String> requiredColumns = {
+      'formaFuste': 'INTEGER NOT NULL DEFAULT 0',
+      'posiSoc': 'INTEGER NOT NULL DEFAULT 0',
+      'fitossanidade': 'INTEGER NOT NULL DEFAULT 0',
+      'posiCopa': 'INTEGER NOT NULL DEFAULT 0',
+      'formaCopa': 'INTEGER NOT NULL DEFAULT 0',
+    };
+
+    for (var entry in requiredColumns.entries) {
+      if (!columnNames.contains(entry.key)) {
+        await db.execute(
+            'ALTER TABLE arvores ADD COLUMN ${entry.key} ${entry.value}');
+        print('✅ Coluna ${entry.key} adicionada automaticamente');
+      }
+    }
   }
 }

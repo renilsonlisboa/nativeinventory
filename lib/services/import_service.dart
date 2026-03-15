@@ -35,7 +35,7 @@ class ImportService {
       _adicionarLog('Arquivo lido com sucesso (${conteudo.length} caracteres)');
 
       // Converter CSV para lista
-      final linhas = const CsvToListConverter().convert(conteudo);
+      final linhas = const CsvToListConverter(fieldDelimiter: ';').convert(conteudo);
       _adicionarLog('${linhas.length} linhas detectadas no CSV');
 
       if (linhas.length <= 1) {
@@ -178,19 +178,19 @@ class ImportService {
       final y = double.tryParse(linha[7].toString()) ?? 0.0;
       final familia = linha[8].toString().trim();
       final nomeCientifico = linha[9].toString().trim();
+      final nomePopular = linha[10].toString().trim();
 
-      // Extrair HT e HC (podem estar em colunas fixas ou variáveis)
       double ht = 0.0;
       double hc = 0.0;
 
       // Tentar encontrar HT e HC - podem estar após as colunas CAP
       // Procura pelas colunas HT e HC no cabeçalho seria ideal, mas por simplicidade
       // vamos assumir posições fixas ou procurar pelos nomes
-      if (linha.length > 9) {
-        ht = double.tryParse(linha[9].toString()) ?? 0.0;
+      if (linha.length > 10) {
+        ht = double.tryParse(linha[10].toString()) ?? 0.0;
       }
       if (linha.length > 10) {
-        hc = double.tryParse(linha[10].toString()) ?? 0.0;
+        hc = double.tryParse(linha[11].toString()) ?? 0.0;
       }
 
       // Extrair todos os CAPs detectados
@@ -211,6 +211,12 @@ class ImportService {
         }
       }
 
+      final formaFuste = int.tryParse(linha[18].toString()) ?? 1;
+      final posiSoc = int.tryParse(linha[19].toString()) ?? 1;
+      final fitossanidade = int.tryParse(linha[20].toString()) ?? 1;
+      final posiCopa = int.tryParse(linha[21].toString()) ?? 1;
+      final formaCopa = int.tryParse(linha[linha.length].toString()) ?? 1;
+
       if (capsPorAno.isEmpty) {
         _adicionarLog('ERRO Linha $numeroLinha: Nenhum CAP válido encontrado');
         return null;
@@ -226,6 +232,7 @@ class ImportService {
         'parcela': parcela,
         'faixa': faixa,
         'arvore': arvore,
+        'fuste': fuste,
         'codigo': codigo,
         'x': x,
         'y': y,
@@ -233,9 +240,14 @@ class ImportService {
         'nome_cientifico': nomeCientifico,
         'caps_por_ano': capsPorAno, // Mapa com todos os CAPs por ano
         'cap': cap, // DAP calculado do CAP mais recente
-        'ht': ht,
         'hc': hc,
+        'ht': ht,
         'ano_mais_recente': anoMaisRecente,
+        'formaFuste': formaFuste,
+        'posiSoc': posiSoc,
+        'fitossanidade': fitossanidade,
+        'posiCopa': posiCopa,
+        'formaCopa': formaCopa,
       };
     } catch (e) {
       _adicionarLog('ERRO Linha $numeroLinha: Erro ao extrair dados - $e');
@@ -252,8 +264,8 @@ class ImportService {
     // Verificar se árvore já existe
     final arvoreExistente = await db.rawQuery('''
     SELECT id FROM arvores 
-    WHERE parcela_id = ? AND numero_arvore = ? AND codigo NOT IN (1, 2)
-  ''', [parcelaId, dados['arvore']]);
+      WHERE parcela_id = ? AND numero_arvore = ? AND codigo = ? AND numero_fuste = ?
+      ''', [parcelaId, dados['arvore'], dados['codigo'], dados['fuste']]);
 
     int arvoreId;
     bool novaArvore = false;
@@ -263,26 +275,40 @@ class ImportService {
 
       // Atualizar dados da árvore existente
       await db.update('arvores', {
+        'numero_fuste': dados['fuste'],
         'codigo': dados['codigo'],
         'x': dados['x'],
         'y': dados['y'],
         'familia': dados['familia'],
         'nome_cientifico': dados['nome_cientifico'],
         'cap': dados['cap'], // DAP do ano mais recente
+        'hc': dados['hc'],
         'ht': dados['ht'],
+        'formaFuste': dados['formaFuste'],
+        'posiSoc': dados['posiSoc'],
+        'fitossanidade': dados['fitossanidade'],
+        'posiCopa': dados['posiCopa'],
+        'formaCopa': dados['formaCopa'],
       }, where: 'id = ?', whereArgs: [arvoreId]);
     } else {
       // Inserir nova árvore
       arvoreId = await db.insert('arvores', {
         'parcela_id': parcelaId,
         'numero_arvore': dados['arvore'],
+        'numero_fuste': dados['fuste'],
         'codigo': dados['codigo'],
         'x': dados['x'],
         'y': dados['y'],
         'familia': dados['familia'],
         'nome_cientifico': dados['nome_cientifico'],
-        'cap': dados['cap'], // DAP do ano mais recente
+        'cap': dados['cap'],
+        'hc': dados['hc'],
         'ht': dados['ht'],
+        'formaFuste': dados['formaFuste'],
+        'posiSoc': dados['posiSoc'],
+        'fitossanidade': dados['fitossanidade'],
+        'posiCopa': dados['posiCopa'],
+        'formaCopa': dados['formaCopa'],
       });
       novaArvore = true;
     }
@@ -313,7 +339,7 @@ class ImportService {
     // Buscar parcela existente
     final parcelaExistente = await db.rawQuery('''
       SELECT id FROM parcelas 
-      WHERE inventario_id = ? AND bloco = ? AND faixa = ? AND parcela = ?
+      WHERE inventario_id = ? AND bloco = ? AND parcela = ? AND faixa = ?
     ''', [inventarioId, dados['bloco'], dados['parcela'], dados['faixa']]);
 
     if (parcelaExistente.isNotEmpty) {

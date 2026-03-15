@@ -8,9 +8,15 @@ class Arvore {
   final double y;
   final String familia;
   final String nomeCientifico;
+  final String? nomePopular;
   final double cap;
   final double hc;
   final double ht;
+  final int? formaFuste;
+  final int? posiSoc;
+  final int? fitossanidade;
+  final int? posiCopa;
+  final int? formaCopa;
 
   Arvore({
     this.id = 0,
@@ -22,9 +28,15 @@ class Arvore {
     required this.y,
     required this.familia,
     required this.nomeCientifico,
+    required this.nomePopular,
     required this.cap,
     required this.hc,
     required this.ht,
+    required this.formaFuste,
+    required this.posiSoc,
+    required this.fitossanidade,
+    required this.posiCopa,
+    required this.formaCopa,
   });
 
 
@@ -39,9 +51,15 @@ class Arvore {
       'y': y,
       'familia': familia,
       'nome_cientifico': nomeCientifico,
+      'nome_popular': nomePopular,
       'cap': cap, // MUDOU
       'hc': hc,   // NOVO
       'ht': ht,
+      'formaFuste': formaFuste,
+      'posiSoc': posiSoc,
+      'fitossanidade': fitossanidade,
+      'posiCopa': posiCopa,
+      'formaCopa': formaCopa,
     };
   }
 
@@ -52,13 +70,19 @@ class Arvore {
       numeroArvore: map['numero_arvore'],
       numeroFuste: map['numero_fuste'],
       codigo: map['codigo'],
-      x: map['x']?.toDouble() ?? 0.0,
-      y: map['y']?.toDouble() ?? 0.0,
+      x: map['x'],
+      y: map['y'],
       familia: map['familia'],
       nomeCientifico: map['nome_cientifico'],
-      cap: map['cap']?.toDouble() ?? 0.0,
-      hc: map['hc']?.toDouble() ?? 0.0,
-      ht: map['ht']?.toDouble() ?? 0.0,
+      nomePopular: map['nomePopular'],
+      cap: map['cap'],
+      hc: map['hc'],
+      ht: map['ht'],
+      formaFuste: map['formaFuste'],
+      posiSoc: map['posiSoc'],
+      fitossanidade: map['fitossanidade'],
+      posiCopa: map['posiCopa'],
+      formaCopa: map['formaCopa'],
     );
   }
 

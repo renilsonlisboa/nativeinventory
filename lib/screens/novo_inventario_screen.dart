@@ -261,7 +261,6 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
                           label: 'DAP Mínimo (cm)',
                           icon: Icons.straighten,
                           keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          helperText: 'Árvores com DAP abaixo deste valor não serão incluídas',
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Por favor, insira o DAP mínimo';
@@ -309,17 +308,17 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
                   height: 55,
                   child: OutlinedButton.icon(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.cancel_outlined, color: Colors.blue.shade700),
+                    icon: Icon(Icons.cancel_outlined, color: Colors.red.shade700),
                     label: Text(
                       'Cancelar',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: Colors.blue.shade700,
+                        color: Colors.red.shade700,
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.blue.shade700, width: 1.5),
+                      side: BorderSide(color: Colors.red.shade700, width: 1.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
