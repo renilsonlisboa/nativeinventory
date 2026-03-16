@@ -49,12 +49,14 @@ class ExportService {
       'Bloco',
       'Faixa',
       'Parcela',
-      'Árvore',
+      'Arvore',
+      'Fuste',
       'Codigo',
       'X',
       'Y',
       'Familia',
       'Nome_Cientifico',
+      'Nome_Popular',
     ];
 
     // Colunas CAP por ano
@@ -63,6 +65,7 @@ class ExportService {
     }
 
     // Coluna HT
+    cabecalho.add('HC');
     cabecalho.add('HT');
 
     // Novas colunas solicitadas (ao final)
@@ -93,11 +96,13 @@ class ExportService {
           parcela.faixa,
           parcela.parcela,
           arvore.numeroArvore,
+          arvore.numeroFuste,
           arvore.codigo,
           arvore.x.toStringAsFixed(2),
           arvore.y.toStringAsFixed(2),
           arvore.familia,
           arvore.nomeCientifico,
+          arvore.nomePopular,
         ];
 
         // CAP por ano
@@ -107,7 +112,8 @@ class ExportService {
         }
 
         // HT
-        linha.add(arvore.ht.toStringAsFixed(2));
+        linha.add(arvore.hc != null ? arvore.hc.toStringAsFixed(2) : '');
+        linha.add(arvore.ht != null ? arvore.ht.toStringAsFixed(2) : '');
 
         // Novos campos
         linha.add(arvore.formaFuste ?? '');
@@ -152,17 +158,19 @@ class ExportService {
       'Faixa',
       'Parcela',
       'Árvore',
+      'Fuste',
       'Codigo',
       'X',
       'Y',
       'Familia',
       'Nome_Cientifico',
+      'Nome_Popular',
     ];
 
     for (final ano in anosOrdenados) {
       cabecalho.add('CAP_$ano');
     }
-
+    cabecalho.add('HC');
     cabecalho.add('HT');
 
     // Novas colunas
@@ -193,11 +201,13 @@ class ExportService {
           parcela.faixa,
           parcela.parcela,
           arvore.numeroArvore,
+          arvore.numeroFuste,
           arvore.codigo,
           arvore.x,
           arvore.y,
           arvore.familia,
           arvore.nomeCientifico,
+          arvore.nomePopular,
         ];
 
         for (final ano in anosOrdenados) {
@@ -205,6 +215,7 @@ class ExportService {
           linha.add(valorCap ?? '');
         }
 
+        linha.add(arvore.hc);
         linha.add(arvore.ht);
 
         // Novos campos
@@ -391,7 +402,9 @@ class ExportService {
           'y': arvore.y,
           'familia': arvore.familia,
           'nome_cientifico': arvore.nomeCientifico,
+          'nome_popular': arvore.nomePopular,
           'historico_cap': capsPorAno,
+          'hc': arvore.hc,
           'ht': arvore.ht,
           // Novos campos adicionados para consistência (opcional)
           'forma_fuste': arvore.formaFuste,

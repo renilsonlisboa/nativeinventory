@@ -28,7 +28,7 @@ class Inventario {
       nome: map['nome'] as String? ?? '',
       areaInventariada: (map['area_inventariada'] as num?)?.toDouble() ?? 0.0,
       numeroBlocos: map['numero_blocos'] as int? ?? 0,
-      numeroFaixas: map['numero_faixa'] as int? ?? 0,
+      numeroFaixas: map['numero_faixas'] as int? ?? 0,
       numeroParcelas: map['numero_parcelas'] as int? ?? 0,
       dapMinimo: (map['dap_minimo'] as num?)?.toDouble() ?? 10.0,
       dataCriacao: DateTime.parse(map['data_criacao'] as String? ?? DateTime.now().toIso8601String()),

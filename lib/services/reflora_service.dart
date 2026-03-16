@@ -9,7 +9,7 @@ class RefloraFamiliasService {
 
   // URL do arquivo CSV no GitHub
   static const String _csvUrl =
-      'https://raw.githubusercontent.com/renilsonlisboa/reflora_data/main/dados_reflora.csv';
+      'https://raw.githubusercontent.com/renilsonlisboa/reflora_data/main/resultados_flora.csv';
 
   final Map<String, String> _headers = {
     'Content-Type': 'text/csv',

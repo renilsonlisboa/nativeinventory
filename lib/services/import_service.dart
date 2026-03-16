@@ -211,11 +211,11 @@ class ImportService {
         }
       }
 
-      final formaFuste = int.tryParse(linha[18].toString()) ?? 1;
-      final posiSoc = int.tryParse(linha[19].toString()) ?? 1;
-      final fitossanidade = int.tryParse(linha[20].toString()) ?? 1;
-      final posiCopa = int.tryParse(linha[21].toString()) ?? 1;
-      final formaCopa = int.tryParse(linha[linha.length].toString()) ?? 1;
+      final formaFuste = int.tryParse(linha[linha.length-5].toString()) ?? 1;
+      final posiSoc = int.tryParse(linha[linha.length-4].toString()) ?? 1;
+      final fitossanidade = int.tryParse(linha[linha.length-3].toString()) ?? 1;
+      final posiCopa = int.tryParse(linha[linha.length-2].toString()) ?? 1;
+      final formaCopa = int.tryParse(linha[linha.length-1].toString()) ?? 1;
 
       if (capsPorAno.isEmpty) {
         _adicionarLog('ERRO Linha $numeroLinha: Nenhum CAP válido encontrado');
@@ -238,6 +238,7 @@ class ImportService {
         'y': y,
         'familia': familia,
         'nome_cientifico': nomeCientifico,
+        'nome_popular': nomePopular,
         'caps_por_ano': capsPorAno, // Mapa com todos os CAPs por ano
         'cap': cap, // DAP calculado do CAP mais recente
         'hc': hc,
@@ -281,6 +282,7 @@ class ImportService {
         'y': dados['y'],
         'familia': dados['familia'],
         'nome_cientifico': dados['nome_cientifico'],
+        'nome_popular': dados['nome_popular'],
         'cap': dados['cap'], // DAP do ano mais recente
         'hc': dados['hc'],
         'ht': dados['ht'],
@@ -301,6 +303,7 @@ class ImportService {
         'y': dados['y'],
         'familia': dados['familia'],
         'nome_cientifico': dados['nome_cientifico'],
+        'nome_popular': dados['nome_popular'],
         'cap': dados['cap'],
         'hc': dados['hc'],
         'ht': dados['ht'],
