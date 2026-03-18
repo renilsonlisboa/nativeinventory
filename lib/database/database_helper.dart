@@ -937,7 +937,7 @@ class DatabaseHelper {
     final columnNames = columns.map((c) => c['name']).toSet();
 
     final Map<String, String> requiredColumns = {
-      'formaFuste': 'INTEGER NOT NULL DEFAULT 0',
+      'formaFuste': 'INTEGER DEFAULT 0',
       'posiSoc': 'INTEGER NOT NULL DEFAULT 0',
       'fitossanidade': 'INTEGER NOT NULL DEFAULT 0',
       'posiCopa': 'INTEGER NOT NULL DEFAULT 0',

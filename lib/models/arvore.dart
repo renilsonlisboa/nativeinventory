@@ -74,7 +74,7 @@ class Arvore {
       y: map['y'],
       familia: map['familia'],
       nomeCientifico: map['nome_cientifico'],
-      nomePopular: map['nomePopular'],
+      nomePopular: map['nome_popular'],
       cap: map['cap'],
       hc: map['hc'],
       ht: map['ht'],

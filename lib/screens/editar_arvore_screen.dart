@@ -840,6 +840,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               ),
                               items: const [
+                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
                                 DropdownMenuItem(value: 1, child: Text('1 - Fuste Tortuoso')),
                                 DropdownMenuItem(value: 2, child: Text('2 - Fuste Levemente Torturoso')),
                                 DropdownMenuItem(value: 3, child: Text('3 - Fuste Reto')),
@@ -884,6 +885,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               ),
                               items: const [
+                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
                                 DropdownMenuItem(value: 1, child: Text('1 - Estrato Inferior')),
                                 DropdownMenuItem(value: 2, child: Text('2 - Estrato Médio')),
                                 DropdownMenuItem(value: 3, child: Text('3 - Estrato Superior')),
@@ -928,6 +930,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               ),
                               items: const [
+                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
                                 DropdownMenuItem(value: 1, child: Text('1 - Fitossanidade Ruim')),
                                 DropdownMenuItem(value: 2, child: Text('2 - Fitossanidade Média')),
                                 DropdownMenuItem(value: 3, child: Text('3 - Fitossanidade Boa')),
@@ -973,6 +976,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               ),
                               items: const [
+                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
                                 DropdownMenuItem(value: 1, child: Text('1 - Sem Iluminação Direta')),
                                 DropdownMenuItem(value: 2, child: Text('2 - Alguma Iluminação Natural')),
                                 DropdownMenuItem(value: 3, child: Text('3 - Iluminação Superior Parcial')),
@@ -1019,6 +1023,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               ),
                               items: const [
+                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
                                 DropdownMenuItem(value: 1, child: Text('1 - Forma Intolerável')),
                                 DropdownMenuItem(value: 2, child: Text('2 - Forma Pobre')),
                                 DropdownMenuItem(value: 3, child: Text('3 - Forma Tolerável')),

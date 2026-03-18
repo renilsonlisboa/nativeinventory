@@ -112,7 +112,7 @@ class ImportService {
         totalLinhasProcessadas++;
 
         // Validar linha básica - agora precisamos de pelo menos 9 colunas (até nome_cientifico)
-        if (linha.length < 9) {
+        if (linha.length < 10) {
           _adicionarLog('ERRO Linha ${i + 1}: Número insuficiente de colunas (${linha.length})');
           totalLinhasComErro++;
           continue;
@@ -180,19 +180,6 @@ class ImportService {
       final nomeCientifico = linha[9].toString().trim();
       final nomePopular = linha[10].toString().trim();
 
-      double ht = 0.0;
-      double hc = 0.0;
-
-      // Tentar encontrar HT e HC - podem estar após as colunas CAP
-      // Procura pelas colunas HT e HC no cabeçalho seria ideal, mas por simplicidade
-      // vamos assumir posições fixas ou procurar pelos nomes
-      if (linha.length > 10) {
-        ht = double.tryParse(linha[10].toString()) ?? 0.0;
-      }
-      if (linha.length > 10) {
-        hc = double.tryParse(linha[11].toString()) ?? 0.0;
-      }
-
       // Extrair todos os CAPs detectados
       final capsPorAno = <int, double>{};
       for (final entry in colunasCap.entries) {
@@ -211,11 +198,13 @@ class ImportService {
         }
       }
 
-      final formaFuste = int.tryParse(linha[linha.length-5].toString()) ?? 1;
-      final posiSoc = int.tryParse(linha[linha.length-4].toString()) ?? 1;
-      final fitossanidade = int.tryParse(linha[linha.length-3].toString()) ?? 1;
-      final posiCopa = int.tryParse(linha[linha.length-2].toString()) ?? 1;
-      final formaCopa = int.tryParse(linha[linha.length-1].toString()) ?? 1;
+      final hc = double.tryParse(linha[linha.length-7]?.toString() ?? '') ?? 0.0;
+      final ht = double.tryParse(linha[linha.length-6].toString()) ?? 0.0;
+      final formaFuste = int.tryParse(linha[linha.length-5].toString()) ?? 0;
+      final posiSoc = int.tryParse(linha[linha.length-4].toString()) ?? 0;
+      final fitossanidade = int.tryParse(linha[linha.length-3].toString()) ?? 0;
+      final posiCopa = int.tryParse(linha[linha.length-2].toString()) ?? 0;
+      final formaCopa = int.tryParse(linha[linha.length-1].toString()) ?? 0;
 
       if (capsPorAno.isEmpty) {
         _adicionarLog('ERRO Linha $numeroLinha: Nenhum CAP válido encontrado');
@@ -239,8 +228,8 @@ class ImportService {
         'familia': familia,
         'nome_cientifico': nomeCientifico,
         'nome_popular': nomePopular,
-        'caps_por_ano': capsPorAno, // Mapa com todos os CAPs por ano
-        'cap': cap, // DAP calculado do CAP mais recente
+        'caps_por_ano': capsPorAno,
+        'cap': cap,
         'hc': hc,
         'ht': ht,
         'ano_mais_recente': anoMaisRecente,
@@ -283,7 +272,7 @@ class ImportService {
         'familia': dados['familia'],
         'nome_cientifico': dados['nome_cientifico'],
         'nome_popular': dados['nome_popular'],
-        'cap': dados['cap'], // DAP do ano mais recente
+        'cap': dados['cap'],
         'hc': dados['hc'],
         'ht': dados['ht'],
         'formaFuste': dados['formaFuste'],
