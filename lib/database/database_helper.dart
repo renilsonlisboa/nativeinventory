@@ -10,7 +10,7 @@ class DatabaseHelper {
   factory DatabaseHelper() => _instance;
   static Database? _database;
 
-  static const int _databaseVersion = 12;
+  static const int _databaseVersion = 13;
 
   DatabaseHelper._internal();
 
@@ -110,7 +110,13 @@ class DatabaseHelper {
         case 11:
           print('📋 Executando migração versão 11: adicionando colunas de nome Popular');
           await _safeAddColumn(db, 'arvores', 'nome_popular', 'TEXT NOT NULL');
-          print('✅ Colunas de fitossanidade adicionadas na tabela arvores (migração v10)');
+          break;
+
+        case 12:
+          await _safeAddColumn(db, 'arvores', 'dataIngresso', 'INTEGER NOT NULL');
+          await _safeAddColumn(db, 'arvores', 'infoMorte', 'INTEGER NOT NULL');
+          await _safeAddColumn(db, 'arvores', 'dataMorte', 'INTEGER NOT NULL');
+          await _safeAddColumn(db, 'arvores', 'observation', 'TEXT NOT NULL');
           break;
       }
     }
@@ -248,6 +254,10 @@ class DatabaseHelper {
         fitossanidade INTEGER NOT NULL DEFAULT 0,
         posiCopa INTEGER NOT NULL DEFAULT 0,
         formaCopa INTEGER NOT NULL DEFAULT 0,
+        dataIngresso INTEGER,
+        infoMorte INTEGER NOT NULL DEFAULT 0,
+        dataMorte INTEGER,
+        observation TEXT,
         FOREIGN KEY (parcela_id) REFERENCES parcelas (id) ON DELETE CASCADE
       )
     ''');
@@ -951,5 +961,45 @@ class DatabaseHelper {
         print('✅ Coluna ${entry.key} adicionada automaticamente');
       }
     }
+  }
+  // ==================== NOVOS MÉTODOS PARA TAXONOMIA ====================
+
+  /// Retorna uma lista de nomes científicos que correspondem ao filtro (case insensitive)
+  Future<List<String>> getEspecies({String? filtro}) async {
+    final db = await database;
+    String query;
+    List<dynamic> arguments = [];
+
+    if (filtro != null && filtro.isNotEmpty) {
+      query = '''
+        SELECT nome_cientifico FROM especies 
+        WHERE nome_cientifico LIKE ? 
+        ORDER BY nome_cientifico
+        LIMIT 50
+      ''';
+      arguments = ['%$filtro%'];
+    } else {
+      query = 'SELECT nome_cientifico FROM especies ORDER BY nome_cientifico LIMIT 50';
+    }
+
+    final result = await db.rawQuery(query, arguments);
+    return result.map((row) => row['nome_cientifico'] as String).toList();
+  }
+
+  /// Retorna a família correspondente ao nome científico (exato)
+  Future<String?> getFamiliaByNomeCientifico(String nomeCientifico) async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT f.nome 
+      FROM familias f
+      INNER JOIN especies e ON e.familia_id = f.id
+      WHERE e.nome_cientifico = ?
+      LIMIT 1
+    ''', [nomeCientifico]);
+
+    if (result.isNotEmpty) {
+      return result.first['nome'] as String?;
+    }
+    return null;
   }
 }

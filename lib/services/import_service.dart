@@ -301,6 +301,7 @@ class ImportService {
         'fitossanidade': dados['fitossanidade'],
         'posiCopa': dados['posiCopa'],
         'formaCopa': dados['formaCopa'],
+
       });
       novaArvore = true;
     }

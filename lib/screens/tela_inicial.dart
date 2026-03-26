@@ -10,10 +10,6 @@ class TelaInicial extends StatelessWidget {
     return Scaffold(
       // AppBar com verde principal e transparência suave
       appBar: AppBar(
-        title: Text(
-          'Sistema de Inventário Florestal',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
         backgroundColor: Colors.green.shade700,
         elevation: 4,
         shadowColor: Colors.black26,

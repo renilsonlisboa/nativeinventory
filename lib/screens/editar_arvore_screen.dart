@@ -31,6 +31,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   final _dapController = TextEditingController();
   final _hcController = TextEditingController();
   final _htController = TextEditingController();
+  final _observationController = TextEditingController();
 
   // Variável para o dropdown de código
   int? _selectedCodigo;
@@ -39,6 +40,9 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   int? _selectedFito;
   int? _selectedPosiCopa;
   int? _selectedFormaCopa;
+  int? _selecteddataIngresso;
+  int? _selectedinfoMorta;
+  int? _selecteddataMorta;
 
   double _dapMinimo = 31.4;
   bool _dapAbaixoMinimo = false;
@@ -71,9 +75,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       _familiaController.text = widget.arvore!.familia;
       _nomeCientificoController.text = widget.arvore!.nomeCientifico;
       _familiaSelecionada = widget.arvore!.familia;
+      _nomePopularController.text = widget.arvore!.nomePopular.toString();
 
-      final dap = widget.arvore!.cap;
-      _dapController.text = dap.toStringAsFixed(2);
       _hcController.text = widget.arvore!.hc.toString();
       _htController.text = widget.arvore!.ht.toString();
 
@@ -82,7 +85,14 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       _selectedFito = (widget.arvore!.fitossanidade);
       _selectedPosiCopa = (widget.arvore!.posiCopa);
       _selectedFormaCopa = (widget.arvore!.formaCopa);
+    }else {
+      _familiaController.text = 'N.I.';
+      _nomeCientificoController.text = 'N.I.';
+      _nomePopularController.text = 'N.I.';
     }
+    _selecteddataIngresso = widget.arvore?.dataIngresso;
+    _selectedinfoMorta = widget.arvore?.infoMorte ?? 0;
+    _selecteddataMorta = widget.arvore?.dataMorte;
   }
 
   void _configurarListeners() {
@@ -120,7 +130,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   }
 
   void _onEspecieFocusChanged() {
-    if (_nomeCientificoFocusNode.hasFocus && _familiaSelecionada.isNotEmpty) {
+    if (_nomeCientificoFocusNode.hasFocus && _nomeCientificoController.text.isNotEmpty) {
       _filtrarEspecies();
       setState(() {
         _mostrarSugestoesEspecie = true;
@@ -136,7 +146,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     final filtro = _familiaController.text;
     final dbHelper = DatabaseHelper();
 
-    // GARANTIR QUE AS TABELAS DE TAXONOMIA EXISTEM
     await dbHelper.ensureTaxonomiaTablesExist();
 
     final familias = await dbHelper.getFamilias(filtro: filtro);
@@ -150,20 +159,19 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   Future<void> _filtrarEspecies() async {
     final filtro = _nomeCientificoController.text;
 
-    if (_familiaSelecionada.isEmpty) {
-      setState(() {
-        _especiesFiltradas = [];
-        _mostrarSugestoesEspecie = false;
-      });
-      return;
-    }
-
     final dbHelper = DatabaseHelper();
 
     // GARANTIR QUE AS TABELAS DE TAXONOMIA EXISTEM
     await dbHelper.ensureTaxonomiaTablesExist();
 
-    final especies = await dbHelper.getEspeciesByFamilia(_familiaSelecionada, filtro: filtro);
+    List<String> especies;
+    if (_familiaSelecionada.isEmpty) {
+      // Busca global por espécies (independente da família)
+      especies = await dbHelper.getEspecies(filtro: filtro);
+    } else {
+      // Busca restrita à família selecionada
+      especies = await dbHelper.getEspeciesByFamilia(_familiaSelecionada, filtro: filtro);
+    }
 
     setState(() {
       _especiesFiltradas = especies;
@@ -189,12 +197,22 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     });
   }
 
-  void _selecionarEspecie(String especie) {
+  void _selecionarEspecie(String especie) async {
     setState(() {
       _nomeCientificoController.text = especie;
       _mostrarSugestoesEspecie = false;
       _nomeCientificoFocusNode.unfocus();
     });
+
+    // Buscar a família correspondente à espécie selecionada
+    final dbHelper = DatabaseHelper();
+    final familia = await dbHelper.getFamiliaByNomeCientifico(especie);
+    if (familia != null && familia.isNotEmpty) {
+      setState(() {
+        _familiaController.text = familia;
+        _familiaSelecionada = familia;
+      });
+    }
   }
 
   Future<void> _carregarDadosInventario() async {
@@ -226,6 +244,32 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
 
   double _parseDoubleSafe(String value) {
     return double.tryParse(value) ?? 0.0;
+  }
+
+  Future<void> _definirMorta() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar'),
+        content: const Text('Tem certeza que deseja definir esta árvore como morta?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      _selectedinfoMorta = 1;
+      _selecteddataMorta = 2026;
+      print('teste');
+    }
   }
 
   Future<void> _salvarArvore() async {
@@ -262,6 +306,10 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           fitossanidade: _selectedFito,
           formaCopa: _selectedFormaCopa,
           posiCopa: _selectedPosiCopa,
+          dataIngresso: _selecteddataIngresso,
+          infoMorte: _selectedinfoMorta,
+          dataMorte: _selecteddataMorta,
+          observation: _observationController.text,
         );
 
         final dbHelper = DatabaseHelper();
@@ -411,9 +459,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
             ),
             suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
             prefixIcon: Icon(Icons.eco, color: Colors.green.shade700),
-            hintText: _familiaSelecionada.isEmpty
-                ? 'Selecione primeiro a família'
-                : 'Digite para buscar espécies...',
+            hintText: 'Digite para buscar espécies...',
             filled: true,
             fillColor: Colors.white.withOpacity(0.9),
           ),
@@ -431,17 +477,10 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
             icone: Icons.eco,
           ),
         if (_mostrarSugestoesEspecie && _especiesFiltradas.isEmpty && _nomeCientificoController.text.isNotEmpty)
-          _buildMensagemNenhumResultado('Nenhuma espécie encontrada para a família $_familiaSelecionada'),
-        if (_familiaSelecionada.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              'Selecione uma família primeiro',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-              ),
-            ),
+          _buildMensagemNenhumResultado(
+            _familiaSelecionada.isEmpty
+                ? 'Nenhuma espécie encontrada'
+                : 'Nenhuma espécie encontrada para a família $_familiaSelecionada',
           ),
       ],
     );
@@ -512,6 +551,10 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         shadowColor: Colors.black26,
         actions: [
           IconButton(
+            icon: Icon(Icons.receipt),
+            onPressed: _definirMorta,
+          ),
+          IconButton(
             icon: Icon(Icons.save),
             onPressed: _salvarArvore,
           ),
@@ -543,45 +586,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
               key: _formKey,
               child: Column(
                 children: [
-                  // Card de Ano do Inventário
-                  Card(
-                    elevation: 4,
-                    shadowColor: Colors.black26,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today, color: Colors.blue.shade700),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Inventário $_anoInventario',
-                                  style: TextStyle(
-                                    color: Colors.blue.shade800,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Medições serão salvas como: CAP_$_anoInventario, HT_$_anoInventario',
-                                  style: TextStyle(
-                                    color: Colors.blue.shade700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                   SizedBox(height: 16),
 
                   // Card de DAP mínimo
@@ -688,7 +692,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                                 DropdownMenuItem(value: 0, child: Text('0 - Árvore Normal')),
                                 DropdownMenuItem(value: 1, child: Text('1 - Bifurcada Principal')),
                                 DropdownMenuItem(value: 2, child: Text('2 - Bifurcada Secundária')),
-                                DropdownMenuItem(value: 99, child: Text('99 - Morta')),
+                                DropdownMenuItem(value: 3, child: Text('3 - Araucária Reg. Semente')),
+                                DropdownMenuItem(value: 4, child: Text('4 - Araucária Reg. Brotação')),
                               ],
                               onChanged: (value) {
                                 setState(() {
@@ -788,15 +793,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             label: 'HC (m)',
                             icon: Icons.height,
                             keyboardType: TextInputType.numberWithOptions(decimal: true),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Por favor, insira o HC';
-                              }
-                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
-                                return 'Por favor, insira um número válido';
-                              }
-                              return null;
-                            },
                           ),
 
                           SizedBox(height: 16),
@@ -806,15 +802,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             label: 'HT (m)',
                             icon: Icons.height,
                             keyboardType: TextInputType.numberWithOptions(decimal: true),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Por favor, insira o HT';
-                              }
-                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
-                                return 'Por favor, insira um número válido';
-                              }
-                              return null;
-                            },
                           ),
 
                           SizedBox(height: 16),
@@ -826,7 +813,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               border: Border.all(color: Colors.grey.shade300),
                             ),
                             child: DropdownButtonFormField<int>(
-                              initialValue: _selectedFormaFuste,
+                              value: _selectedFormaFuste,
                               decoration: InputDecoration(
                                 labelText: 'Forma do Fuste',
                                 labelStyle: TextStyle(color: Colors.grey.shade700),
@@ -871,7 +858,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               border: Border.all(color: Colors.grey.shade300),
                             ),
                             child: DropdownButtonFormField<int>(
-                              initialValue: _selectedPosiSoc,
+                              value: _selectedPosiSoc,
                               decoration: InputDecoration(
                                 labelText: 'Estrato',
                                 labelStyle: TextStyle(color: Colors.grey.shade700),
@@ -1046,6 +1033,13 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               dropdownColor: Colors.white,
                               style: TextStyle(color: Colors.black87, fontSize: 16),
                             ),
+                          ),
+                          SizedBox(height: 16),
+
+                          _buildTextField(
+                            controller: _observationController,
+                            label: 'Observações',
+                            icon: Icons.numbers,
                           ),
                         ],
                       ),

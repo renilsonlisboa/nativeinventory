@@ -17,6 +17,10 @@ class Arvore {
   final int? fitossanidade;
   final int? posiCopa;
   final int? formaCopa;
+  final int? dataIngresso;
+  final int? infoMorte;
+  final int? dataMorte;
+  final String? observation;
 
   Arvore({
     this.id = 0,
@@ -37,6 +41,10 @@ class Arvore {
     required this.fitossanidade,
     required this.posiCopa,
     required this.formaCopa,
+    required this.dataIngresso,
+    required this.infoMorte,
+    this.dataMorte,
+    required this.observation,
   });
 
 
@@ -52,14 +60,18 @@ class Arvore {
       'familia': familia,
       'nome_cientifico': nomeCientifico,
       'nome_popular': nomePopular,
-      'cap': cap, // MUDOU
-      'hc': hc,   // NOVO
+      'cap': cap,
+      'hc': hc,
       'ht': ht,
       'formaFuste': formaFuste,
       'posiSoc': posiSoc,
       'fitossanidade': fitossanidade,
       'posiCopa': posiCopa,
       'formaCopa': formaCopa,
+      'dataIngresso': dataIngresso,
+      'infoMorte': infoMorte,
+      'dataMorte': dataMorte,
+      'observation': observation,
     };
   }
 
@@ -83,6 +95,10 @@ class Arvore {
       fitossanidade: map['fitossanidade'],
       posiCopa: map['posiCopa'],
       formaCopa: map['formaCopa'],
+      dataIngresso: map['dataIngresso'],
+      infoMorte: map['infoMorte'],
+      dataMorte: map['dataMorte'],
+      observation: map['observation'],
     );
   }
 

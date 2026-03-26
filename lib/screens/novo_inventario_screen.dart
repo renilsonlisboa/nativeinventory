@@ -95,11 +95,12 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
           'Novo Inventário',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
-        backgroundColor: Colors.green.shade700,
+        backgroundColor: Colors.green,
         elevation: 4,
         shadowColor: Colors.black26,
       ),
       body: Container(
+        height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -110,240 +111,249 @@ class _NovoInventarioScreenState extends State<NovoInventarioScreen> {
             ],
           ),
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                // Card principal com o formulário
-                Card(
-                  elevation: 4,
-                  shadowColor: Colors.black26,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Form(
+                    key: _formKey,
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Título do formulário
-                        Text(
-                          'Informações do Inventário',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green.shade800,
+                        Card(
+                          elevation: 4,
+                          shadowColor: Colors.black26,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Informações do Inventário',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green.shade800,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Preencha os dados para criar um novo inventário florestal',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+
+                                _buildTextField(
+                                  controller: _nomeController,
+                                  label: 'Título do Inventário',
+                                  icon: Icons.forest,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Por favor, insira um nome';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildTextField(
+                                  controller: _areaController,
+                                  label: 'Área do Inventário (ha)',
+                                  icon: Icons.square_foot,
+                                  keyboardType:
+                                  TextInputType.numberWithOptions(
+                                      decimal: true),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Por favor, insira a área';
+                                    }
+                                    if (double.tryParse(value) == null) {
+                                      return 'Por favor, insira um número válido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildTextField(
+                                  controller: _blocosController,
+                                  label: 'Número de Blocos',
+                                  icon: Icons.grid_view,
+                                  keyboardType: TextInputType.number,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Por favor, insira o número de blocos';
+                                    }
+                                    if (int.tryParse(value) == null) {
+                                      return 'Por favor, insira um número válido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildTextField(
+                                  controller: _parcelasController,
+                                  label: 'Número de Parcelas',
+                                  icon: Icons.view_agenda,
+                                  keyboardType: TextInputType.number,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Por favor, insira o número de parcelas';
+                                    }
+                                    if (int.tryParse(value) == null) {
+                                      return 'Por favor, insira um número válido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildTextField(
+                                  controller: _faixasController,
+                                  label: 'Número de Faixas',
+                                  icon: Icons.view_stream,
+                                  keyboardType: TextInputType.number,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Por favor, insira o número de faixas';
+                                    }
+                                    if (int.tryParse(value) == null) {
+                                      return 'Por favor, insira um número válido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildTextField(
+                                  controller: _anoMedicaoController,
+                                  label: 'Ano da Medição',
+                                  icon: Icons.calendar_today,
+                                  keyboardType: TextInputType.number,
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Por favor, insira o ano da medição';
+                                    }
+                                    final year = int.tryParse(value);
+                                    if (year == null) {
+                                      return 'Por favor, insira um ano válido';
+                                    }
+                                    if (year < 1900 ||
+                                        year > DateTime.now().year + 1) {
+                                      return 'Ano fora do intervalo esperado';
+                                    }
+                                    return null;
+                                  },
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                _buildTextField(
+                                  controller: _dapMinimoController,
+                                  label: 'DAP Mínimo (cm)',
+                                  icon: Icons.straighten,
+                                  keyboardType:
+                                  TextInputType.numberWithOptions(decimal: true),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Por favor, insira o DAP mínimo';
+                                    }
+                                    if (double.tryParse(value) == null) {
+                                      return 'Por favor, insira um número válido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Preencha os dados para criar um novo inventário florestal',
+                        const SizedBox(height: 16),
+
+                        const Text(
+                          'Todos os campos são obrigatórios',
                           style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                            color: Colors.black54,
                           ),
                         ),
-                        SizedBox(height: 24),
 
-                        // Campo Nome
-                        _buildTextField(
-                          controller: _nomeController,
-                          label: 'Título do Inventário',
-                          icon: Icons.forest,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, insira um nome';
-                            }
-                            return null;
-                          },
+                        const SizedBox(height: 24),
+
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: ElevatedButton.icon(
+                            onPressed: _criarInventario,
+                            icon: const Icon(Icons.add_circle_outline, size: 24),
+                            label: const Text(
+                              'Criar Inventário',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.w600),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              foregroundColor: Colors.white,
+                              elevation: 8,
+                              shadowColor:
+                              Colors.green.shade700.withOpacity(0.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 24),
+                            ),
+                          ),
                         ),
-                        SizedBox(height: 16),
 
-                        // Campo Área
-                        _buildTextField(
-                          controller: _areaController,
-                          label: 'Área do Inventário (ha)',
-                          icon: Icons.square_foot,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, insira a área';
-                            }
-                            if (double.tryParse(value) == null) {
-                              return 'Por favor, insira um número válido';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: 16),
+                        const SizedBox(height: 12),
 
-                        // Campo Blocos
-                        _buildTextField(
-                          controller: _blocosController,
-                          label: 'Número de Blocos',
-                          icon: Icons.grid_view,
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, insira o número de blocos';
-                            }
-                            if (int.tryParse(value) == null) {
-                              return 'Por favor, insira um número válido';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: 16),
-
-                        // Campo Parcelas
-                        _buildTextField(
-                          controller: _parcelasController,
-                          label: 'Número de Parcelas',
-                          icon: Icons.view_agenda,
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, insira o número de parcelas';
-                            }
-                            if (int.tryParse(value) == null) {
-                              return 'Por favor, insira um número válido';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: 16),
-
-                        // Campo Faixas
-                        _buildTextField(
-                          controller: _faixasController,
-                          label: 'Número de Faixas',
-                          icon: Icons.view_stream,
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, insira o número de faixas';
-                            }
-                            if (int.tryParse(value) == null) {
-                              return 'Por favor, insira um número válido';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: 16),
-
-                        // Campo Ano
-                        _buildTextField(
-                          controller: _anoMedicaoController,
-                          label: 'Ano da Medição',
-                          icon: Icons.calendar_today,
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, insira o ano da medição';
-                            }
-                            final year = int.tryParse(value);
-                            if (year == null) {
-                              return 'Por favor, insira um ano válido';
-                            }
-                            if (year < 1900 || year > DateTime.now().year + 1) {
-                              return 'Ano fora do intervalo esperado';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: 16),
-
-                        // Campo DAP Mínimo
-                        _buildTextField(
-                          controller: _dapMinimoController,
-                          label: 'DAP Mínimo (cm)',
-                          icon: Icons.straighten,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor, insira o DAP mínimo';
-                            }
-                            if (double.tryParse(value) == null) {
-                              return 'Por favor, insira um número válido';
-                            }
-                            return null;
-                          },
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.pop(context),
+                            icon:
+                            Icon(Icons.cancel_outlined, color: Colors.red.shade700),
+                            label: Text(
+                              'Cancelar',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red.shade700,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                  color: Colors.red.shade700, width: 1.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 24),
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                SizedBox(height: 24),
-
-                // Botão Criar (verde)
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton.icon(
-                    onPressed: _criarInventario,
-                    icon: Icon(Icons.add_circle_outline, size: 24),
-                    label: Text(
-                      'Criar Inventário',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade700,
-                      foregroundColor: Colors.white,
-                      elevation: 8,
-                      shadowColor: Colors.green.shade700.withOpacity(0.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 12),
-
-                // Botão Cancelar (delineado)
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.cancel_outlined, color: Colors.red.shade700),
-                    label: Text(
-                      'Cancelar',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.red.shade700,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.red.shade700, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-
-                // Texto de rodapé
-                Text(
-                  'Todos os campos são obrigatórios',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
-
   // Método auxiliar para construir campos de texto padronizados
   Widget _buildTextField({
     required TextEditingController controller,

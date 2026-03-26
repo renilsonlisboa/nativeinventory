@@ -32,6 +32,9 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
   bool _isSearching = false;
   Timer? _debounceTimer;
 
+  // ✅ Controle de exibição: vivas (false) ou mortas (true)
+  bool _mostrarMortas = false;
+
   // Altura fixa para as linhas (células)
   static const double _rowHeight = 50;
 
@@ -90,11 +93,22 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
   }
 
   Future<List<Arvore>> _carregarArvoresComHistoricos() async {
-    final arvores = await DatabaseHelper().getArvoresByParcela(widget.parcelaId);
+    final todasArvores =
+    await DatabaseHelper().getArvoresByParcela(widget.parcelaId);
+
+    // ✅ Filtra por status de morte
+    final arvores = todasArvores
+        .where((a) =>
+    _mostrarMortas
+        ? (a.infoMorte ?? 0) == 1
+        : (a.infoMorte ?? 0) == 0)
+        .toList();
+
     _todasArvores = arvores;
 
     for (final arvore in arvores) {
-      final historico = await DatabaseHelper().getCapHistoricoByArvore(arvore.id!);
+      final historico =
+      await DatabaseHelper().getCapHistoricoByArvore(arvore.id!);
       _capsPorArvore[arvore.id!] = {};
       for (final item in historico) {
         _capsPorArvore[arvore.id!]![item.ano] = item.cap;
@@ -200,8 +214,9 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
       headers.add(_buildHeaderCell('CAP $ano', fontSize: 12));
     }
 
-    // Colunas atuais (CAP atual, HT, Ações)
-    headers.add(_buildHeaderCell('CAP $_anoAtual', color: Colors.green, fontSize: 12));
+    // Colunas atuais (CAP atual, HC, HT, Ações)
+    headers.add(
+        _buildHeaderCell('CAP $_anoAtual', color: Colors.green, fontSize: 12));
     headers.add(_buildHeaderCell('HC'));
     headers.add(_buildHeaderCell('HT'));
     headers.add(_buildHeaderCell('Fuste'));
@@ -217,7 +232,7 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
   /// Constrói uma célula de cabeçalho padronizada
   Widget _buildHeaderCell(String text, {Color? color, double fontSize = 14}) {
     return Container(
-      width: 100, // Largura fixa para todas as colunas
+      width: 100,
       height: _rowHeight,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -278,11 +293,17 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
     );
     cells.add(_buildDataCell(arvore.hc.toStringAsFixed(2), arvore));
     cells.add(_buildDataCell(arvore.ht.toStringAsFixed(2), arvore));
-    cells.add(_buildDataCell(arvore.formaFuste == 0 ? '-' : arvore.formaFuste.toString(), arvore));
-    cells.add(_buildDataCell(arvore.posiSoc == 0 ? '-' : arvore.posiSoc.toString(), arvore));
-    cells.add(_buildDataCell(arvore.fitossanidade == 0 ? '-' : arvore.fitossanidade.toString(), arvore));
-    cells.add(_buildDataCell(arvore.posiCopa == 0 ? '-' : arvore.posiCopa.toString(), arvore));
-    cells.add(_buildDataCell(arvore.formaCopa == 0 ? '-' : arvore.formaCopa.toString(), arvore));
+    cells.add(_buildDataCell(
+        arvore.formaFuste == 0 ? '-' : arvore.formaFuste.toString(), arvore));
+    cells.add(_buildDataCell(
+        arvore.posiSoc == 0 ? '-' : arvore.posiSoc.toString(), arvore));
+    cells.add(_buildDataCell(
+        arvore.fitossanidade == 0 ? '-' : arvore.fitossanidade.toString(),
+        arvore));
+    cells.add(_buildDataCell(
+        arvore.posiCopa == 0 ? '-' : arvore.posiCopa.toString(), arvore));
+    cells.add(_buildDataCell(
+        arvore.formaCopa == 0 ? '-' : arvore.formaCopa.toString(), arvore));
     cells.add(_buildActionCell(arvore));
     return cells;
   }
@@ -417,12 +438,22 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
             onPressed: _adicionarArvore,
             tooltip: 'Adicionar árvore',
           ),
-          if (_anosUnicos.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.info),
-              onPressed: _mostrarLegenda,
-              tooltip: 'Legenda das cores',
+          // ✅ Botão de alternância: vivas / mortas
+          IconButton(
+            icon: Icon(
+              _mostrarMortas ? Icons.person_off : Icons.park,
+              color: _mostrarMortas ? Colors.red.shade200 : Colors.white,
             ),
+            tooltip: _mostrarMortas
+                ? 'Exibindo árvores mortas'
+                : 'Exibindo árvores vivas',
+            onPressed: () {
+              setState(() {
+                _mostrarMortas = !_mostrarMortas;
+              });
+              _carregarArvoresEHistoricos();
+            },
+          ),
         ],
       ),
       body: Container(
@@ -446,7 +477,8 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                        valueColor:
+                        AlwaysStoppedAnimation<Color>(Colors.green),
                       ),
                     );
                   } else if (snapshot.hasError) {
@@ -454,11 +486,13 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error, color: Colors.red.shade700, size: 64),
+                          Icon(Icons.error,
+                              color: Colors.red.shade700, size: 64),
                           const SizedBox(height: 16),
                           const Text(
                             'Erro ao carregar árvores',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -486,46 +520,54 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.forest, size: 64, color: Colors.green.shade200),
+                          Icon(Icons.forest,
+                              size: 64, color: Colors.green.shade200),
                           const SizedBox(height: 16),
                           Text(
-                            'Nenhuma árvore cadastrada',
-                            style: TextStyle(fontSize: 18, color: Colors.grey.shade700),
+                            _mostrarMortas
+                                ? 'Nenhuma árvore morta cadastrada'
+                                : 'Nenhuma árvore cadastrada',
+                            style: TextStyle(
+                                fontSize: 18, color: Colors.grey.shade700),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Parcela: ${widget.identificadorParcela}',
                             style: TextStyle(color: Colors.grey.shade600),
                           ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.add),
-                            label: const Text('Adicionar Primeira Árvore'),
-                            onPressed: _adicionarArvore,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green.shade700,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          if (!_mostrarMortas) ...[
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.add),
+                              label: const Text('Adicionar Primeira Árvore'),
+                              onPressed: _adicionarArvore,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green.shade700,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     );
                   } else {
-                    final arvores = _isSearching ? _arvoresFiltradas : snapshot.data!;
+                    final arvores =
+                    _isSearching ? _arvoresFiltradas : snapshot.data!;
 
                     if (_isSearching && arvores.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.search_off, size: 64, color: Colors.grey),
-                            const SizedBox(height: 16),
-                            const Text(
+                          children: const [
+                            Icon(Icons.search_off, size: 64, color: Colors.grey),
+                            SizedBox(height: 16),
+                            Text(
                               'Nenhuma árvore encontrada',
-                              style: TextStyle(fontSize: 18, color: Colors.grey),
+                              style:
+                              TextStyle(fontSize: 18, color: Colors.grey),
                             ),
                           ],
                         ),
@@ -551,17 +593,20 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                                 children: [
                                   // Cabeçalho da coluna fixa
                                   Container(
-                                    width: 80, // largura um pouco menor para a coluna "Arv."
+                                    width: 80,
                                     height: _rowHeight,
                                     alignment: Alignment.center,
-                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4),
                                     decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey.shade300),
+                                      border: Border.all(
+                                          color: Colors.grey.shade300),
                                       color: Colors.blue.shade50,
                                     ),
                                     child: const Text(
                                       'Arv.',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                   // Células da coluna fixa (número da árvore)
@@ -572,13 +617,16 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                                         width: 80,
                                         height: _rowHeight,
                                         alignment: Alignment.center,
-                                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4),
                                         decoration: BoxDecoration(
-                                          border: Border.all(color: Colors.grey.shade300),
+                                          border: Border.all(
+                                              color: Colors.grey.shade300),
                                         ),
                                         child: Text(
                                           arvore.numeroArvore.toString(),
-                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold),
                                         ),
                                       ),
                                     );
@@ -591,7 +639,8 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                                 child: SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                     children: [
                                       // Linha de cabeçalhos das colunas roláveis
                                       Row(
@@ -600,7 +649,9 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                                       // Linhas de dados
                                       ...arvores.map((arvore) {
                                         return Row(
-                                          children: _buildScrollableCellsForArvore(arvore),
+                                          children:
+                                          _buildScrollableCellsForArvore(
+                                              arvore),
                                         );
                                       }).toList(),
                                     ],
@@ -618,65 +669,6 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _adicionarArvore,
-        child: const Icon(Icons.add),
-        backgroundColor: Colors.green.shade700,
-        foregroundColor: Colors.white,
-        elevation: 8,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
-    );
-  }
-
-  void _mostrarLegenda() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Legenda das Cores - CAP'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildItemLegenda(Colors.green, 'Crescimento positivo'),
-            _buildItemLegenda(Colors.red, 'Crescimento negativo'),
-            _buildItemLegenda(Colors.orange, 'Sem mudança'),
-            _buildItemLegenda(Colors.black, 'Primeira medição'),
-            _buildItemLegenda(Colors.grey, 'Sem dados'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fechar'),
-          ),
-        ],
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildItemLegenda(Color cor, String texto) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: cor,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(texto),
-        ],
       ),
     );
   }

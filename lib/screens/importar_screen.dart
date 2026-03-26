@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/import_service.dart';
 import '../models/importacao_config.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class ImportarScreen extends StatefulWidget {
   final int inventarioId;
@@ -38,35 +39,25 @@ class _ImportarScreenState extends State<ImportarScreen> {
 
   void _pickFile() async {
     try {
-      PermissionStatus status = await Permission.storage.request();
-
-      if (!status.isGranted) {
-        setState(() {
-          _message = 'Permissão de armazenamento negada. É necessário permitir o acesso aos arquivos para importar dados.';
-          _success = false;
-        });
-        return;
-      }
-
       setState(() {
         _isValidatingFile = true;
         _message = null;
       });
 
+      // SAF não precisa de permissão — abre direto o seletor nativo do Android
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv', 'xlsx', 'xls', 'txt'],
         allowMultiple: false,
-        dialogTitle: 'Selecione o arquivo CSV para importar',
-        allowCompression: true,
+        dialogTitle: 'Selecione o arquivo para importar',
       );
 
       if (result != null && result.files.isNotEmpty) {
-        PlatformFile file = result.files.first;
+        final PlatformFile file = result.files.first;
 
         if (file.path == null) {
           setState(() {
-            _message = 'Erro: Não foi possível acessar o caminho do arquivo.';
+            _message = 'Erro: caminho do arquivo inacessível.';
             _success = false;
           });
           return;
@@ -86,6 +77,7 @@ class _ImportarScreenState extends State<ImportarScreen> {
         _adicionarLog('Arquivo selecionado: ${file.name}');
         _adicionarLog('Tamanho: ${_formatFileSize(file.size)}');
         _adicionarLog('Caminho: ${file.path}');
+
       } else {
         setState(() {
           _message = 'Nenhum arquivo selecionado.';
@@ -94,10 +86,10 @@ class _ImportarScreenState extends State<ImportarScreen> {
       }
     } catch (e) {
       setState(() {
-        _message = 'Erro ao selecionar arquivo: $e';
+        _message = 'Erro ao abrir seletor: $e';
         _success = false;
       });
-      _adicionarLog('ERRO ao selecionar arquivo: $e');
+      _adicionarLog('ERRO: $e');
     } finally {
       setState(() {
         _isValidatingFile = false;
@@ -364,6 +356,7 @@ class _ImportarScreenState extends State<ImportarScreen> {
         ],
       ),
       body: Container(
+        height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -390,17 +383,12 @@ class _ImportarScreenState extends State<ImportarScreen> {
               _buildSupportedFormatsCard(),
               const SizedBox(height: 16),
 
+              // Resumo
+              _buildResumoCard(),
+              const SizedBox(height: 16),
+
               // Botão de importação
               _buildImportButton(),
-
-              // Mensagem de status
-              if (_message != null) _buildStatusMessage(),
-
-              // Resumo
-              if (_resumo != null) _buildResumoCard(),
-
-              // Logs
-              if (_logs.isNotEmpty) _buildLogsCard(),
 
               const SizedBox(height: 20),
             ],
@@ -437,31 +425,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Importe dados de árvores a partir de um arquivo CSV. O sistema detectará automaticamente todas as colunas de CAP (CAP_XXXX) e importará todos os dados históricos.',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.auto_awesome, color: Colors.blue.shade700, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Detecção automática: Todos os anos de CAP serão importados',
-                      style: TextStyle(fontSize: 12, color: Colors.blue.shade800),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -548,14 +511,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.center,
-              child: TextButton.icon(
-                icon: const Icon(Icons.download, size: 16),
-                label: const Text('Copiar dados.csv para Downloads'),
-                onPressed: _isValidatingFile ? null : _copyAssetFileToDownload,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.blue.shade700,
-                ),
-              ),
             ),
             if (_fileName != null) ...[
               const SizedBox(height: 16),
@@ -648,35 +603,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
             _buildFormatItem('CSV (.csv)', 'Arquivos de texto separados por vírgula'),
             _buildFormatItem('Excel (.xlsx, .xls)', 'Planilhas do Microsoft Excel'),
             _buildFormatItem('Texto (.txt)', 'Arquivos de texto simples'),
-            const SizedBox(height: 8),
-            Text(
-              'Estrutura esperada: Bloco, Parcela, Faixa, Arvore, Codigo, X, Y, Familia, Nome_Cientifico, CAP_XXXX, HT, HC',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.auto_awesome, color: Colors.green.shade700, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'O sistema detectará automaticamente todas as colunas CAP_XXXX (CAP_2020, CAP_2021, etc.)',
-                      style: TextStyle(fontSize: 12, color: Colors.green.shade800),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -708,86 +634,6 @@ class _ImportarScreenState extends State<ImportarScreen> {
     );
   }
 
-  Widget _buildImportButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 55,
-      child: ElevatedButton.icon(
-        icon: _isImporting
-            ? SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          ),
-        )
-            : const Icon(Icons.upload),
-        label: Text(
-          _isImporting ? 'Importando...' : 'Iniciar Importação Automática',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        onPressed: (_isImporting || _selectedFile == null) ? null : _importFile,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _selectedFile != null && !_isImporting
-              ? Colors.green.shade700
-              : Colors.grey.shade400,
-          foregroundColor: Colors.white,
-          elevation: 8,
-          shadowColor: _selectedFile != null && !_isImporting
-              ? Colors.green.shade700.withOpacity(0.5)
-              : Colors.grey.shade400.withOpacity(0.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusMessage() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _success ? Colors.green.shade50 : Colors.red.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _success ? Colors.green.shade700 : Colors.red.shade700,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            _success ? Icons.check_circle : Icons.error,
-            color: _success ? Colors.green.shade700 : Colors.red.shade700,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _success ? 'Sucesso!' : 'Atenção',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _success ? Colors.green.shade800 : Colors.red.shade800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _message!,
-                  style: TextStyle(color: Colors.grey.shade800),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildResumoCard() {
     return Card(
@@ -815,14 +661,12 @@ class _ImportarScreenState extends State<ImportarScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            _buildResumoItem('Árvores Processadas', _resumo!['total_arvores'].toString()),
-            _buildResumoItem('Parcelas Afetadas', _resumo!['parcelas_afetadas'].toString()),
-            _buildResumoItem('Novas Árvores', _resumo!['novas_arvores'].toString()),
-            _buildResumoItem('Árvores Atualizadas', _resumo!['arvores_atualizadas'].toString()),
-            if (_resumo!.containsKey('anos_detectados') && _resumo!['anos_detectados'] != null)
-              _buildResumoItem('Anos Detectados', _resumo!['anos_detectados'].length.toString()),
-            if (_resumo!['linhas_com_erro'] > 0)
-              _buildResumoItem('Linhas com Erro', _resumo!['linhas_com_erro'].toString()),
+            _buildResumoItem('Árvores Processadas', (_resumo?['total_arvores'] ?? 0).toString()),
+            _buildResumoItem('Parcelas Afetadas', (_resumo?['parcelas_afetadas'] ?? 0).toString()),
+            _buildResumoItem('Novas Árvores', (_resumo?['novas_arvores'] ?? 0).toString()),
+            _buildResumoItem('Árvores Atualizadas', (_resumo?['arvores_atualizadas'] ?? 0).toString()),
+            _buildResumoItem('Anos Detectados', (_resumo?['anos_detectados'] ?? '').length.toString()),
+            _buildResumoItem('Linhas com Erro', (_resumo?['linhas_com_erro'] ?? 0).toString()),
           ],
         ),
       ),
@@ -855,71 +699,39 @@ class _ImportarScreenState extends State<ImportarScreen> {
       ),
     );
   }
-
-  Widget _buildLogsCard() {
-    return Card(
-      elevation: 4,
-      shadowColor: Colors.black26,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      margin: const EdgeInsets.only(top: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.list, color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  'Log de Processamento',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.blue.shade800,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Detalhes do processamento do arquivo:',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.grey.shade50,
-              ),
-              child: Scrollbar(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: _logs.length,
-                  itemBuilder: (context, index) {
-                    final log = _logs[index];
-                    final isError = log.toLowerCase().contains('erro') ||
-                        log.toLowerCase().contains('error') ||
-                        log.toLowerCase().contains('falha');
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Text(
-                        log,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontFamily: 'Monospace',
-                          color: isError ? Colors.red.shade700 : Colors.black87,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
+  Widget _buildImportButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton.icon(
+        icon: _isImporting
+            ? SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        )
+            : const Icon(Icons.upload),
+        label: Text(
+          _isImporting ? 'Importando...' : 'Iniciar Importação',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        onPressed: (_isImporting || _selectedFile == null) ? null : _importFile,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _selectedFile != null && !_isImporting
+              ? Colors.green.shade700
+              : Colors.grey.shade400,
+          foregroundColor: Colors.white,
+          elevation: 8,
+          shadowColor: _selectedFile != null && !_isImporting
+              ? Colors.green.shade700.withOpacity(0.5)
+              : Colors.grey.shade400.withOpacity(0.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
         ),
       ),
     );

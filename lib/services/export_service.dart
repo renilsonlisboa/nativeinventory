@@ -3,12 +3,16 @@ import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../database/database_helper.dart';
 
 class ExportService {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
-  // Método genérico para compartilhar arquivo
+  // ─────────────────────────────────────────────
+  // Métodos internos auxiliares
+  // ─────────────────────────────────────────────
+
   Future<void> _shareFile(File file, String subject) async {
     try {
       await Share.shareXFiles(
@@ -20,7 +24,6 @@ class ExportService {
     }
   }
 
-  // Método para salvar arquivo temporariamente
   Future<File> _saveTempFile(List<int> bytes, String fileName) async {
     final directory = await getTemporaryDirectory();
     final file = File('${directory.path}/$fileName');
@@ -28,242 +31,168 @@ class ExportService {
     return file;
   }
 
-  // Exportar para CSV com colunas CAP_ANO e novos campos ao final
-  Future<void> exportToCsv(int inventarioId) async {
-    final inventario = await _dbHelper.getInventario(inventarioId);
-    if (inventario == null) {
-      throw Exception('Inventário não encontrado');
+  List<CellValue?> _toCellValues(List<dynamic> values) {
+    return values.map((e) {
+      if (e == null) return null;
+      if (e is num) return DoubleCellValue(e.toDouble());
+      if (e is int) return IntCellValue(e);
+      return TextCellValue(e.toString());
+    }).toList();
+  }
+
+  /// Retorna a pasta Documentos PÚBLICA do celular.
+  /// Android → /storage/emulated/0/Documents
+  /// iOS     → pasta Documentos visível no app "Arquivos"
+  Future<Directory> _resolveLocalDirectory() async {
+    if (Platform.isAndroid) {
+      await _requestStoragePermission();
+
+      // Caminho fixo da pasta Documentos pública do Android
+      final dir = Directory('/storage/emulated/0/Documents');
+      if (!await dir.exists()) await dir.create(recursive: true);
+      return dir;
     }
 
-    final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
+    // iOS: Documents do app, visível em Arquivos > No meu iPhone
+    return getApplicationDocumentsDirectory();
+  }
 
-    // Coletar todos os anos únicos de CAP
-    final todosAnos = await _obterTodosAnosCap(inventarioId);
-    final anosOrdenados = todosAnos.toList()..sort();
+  /// Solicita permissão de armazenamento adequada à versão do Android.
+  Future<void> _requestStoragePermission() async {
+    // Android 11+ (API 30+): MANAGE_EXTERNAL_STORAGE
+    final manageStatus = await Permission.manageExternalStorage.status;
+    if (manageStatus.isGranted) return;
+
+    final requested = await Permission.manageExternalStorage.request();
+    if (requested.isGranted) return;
+
+    // Android 9 / 10: WRITE_EXTERNAL_STORAGE como fallback
+    final storageStatus = await Permission.storage.request();
+    if (storageStatus.isDenied || storageStatus.isPermanentlyDenied) {
+      throw Exception(
+        'Permissão de armazenamento negada. '
+            'Acesse Configurações > Aplicativos > seu app '
+            '> Permissões e ative "Arquivos e mídia".',
+      );
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Geração de conteúdo CSV
+  // ─────────────────────────────────────────────
+
+  Future<String> _generateCsvContent(int inventarioId) async {
+    final inventario = await _dbHelper.getInventario(inventarioId);
+    if (inventario == null) throw Exception('Inventário não encontrado');
+
+    final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
+    final anosOrdenados = (await _obterTodosAnosCap(inventarioId)).toList()..sort();
 
     List<List<dynamic>> csvData = [];
 
-    // Cabeçalho
     List<dynamic> cabecalho = [
-      'Inventario',
-      'Bloco',
-      'Faixa',
-      'Parcela',
-      'Arvore',
-      'Fuste',
-      'Codigo',
-      'X',
-      'Y',
-      'Familia',
-      'Nome_Cientifico',
-      'Nome_Popular',
+      'Inventario', 'Bloco', 'Faixa', 'Parcela', 'Arvore', 'Fuste',
+      'Codigo', 'X', 'Y', 'Familia', 'Nome_Cientifico', 'Nome_Popular',
     ];
-
-    // Colunas CAP por ano
-    for (final ano in anosOrdenados) {
-      cabecalho.add('CAP_$ano');
-    }
-
-    // Coluna HT
-    cabecalho.add('HC');
-    cabecalho.add('HT');
-
-    // Novas colunas solicitadas (ao final)
+    for (final ano in anosOrdenados) cabecalho.add('CAP_$ano');
     cabecalho.addAll([
-      'Forma_Fuste',
-      'Posicao_Social',
-      'Fitossanidade',
-      'Forma_Copa',
-      'Posicao_Copa',
+      'HC', 'HT', 'Forma_Fuste', 'Posicao_Social', 'Fitossanidade',
+      'Forma_Copa', 'Posicao_Copa', 'Ano_Ingresso', 'Info_Morta',
+      'Ano_Morta', 'Observacoes',
     ]);
-
     csvData.add(cabecalho);
 
-    // Dados
     for (final parcela in parcelas) {
       final arvores = await _dbHelper.getArvoresByParcela(parcela.id!);
-
       for (final arvore in arvores) {
-        final historicoCap = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
-        final capsPorAno = <int, double>{};
-        for (final item in historicoCap) {
-          capsPorAno[item.ano] = item.cap;
-        }
+        final capsPorAno = await _capsPorAno(arvore.id!);
 
         List<dynamic> linha = [
-          inventario.nome,
-          parcela.bloco,
-          parcela.faixa,
-          parcela.parcela,
-          arvore.numeroArvore,
-          arvore.numeroFuste,
-          arvore.codigo,
-          arvore.x.toStringAsFixed(2),
-          arvore.y.toStringAsFixed(2),
-          arvore.familia,
-          arvore.nomeCientifico,
-          arvore.nomePopular,
+          inventario.nome, parcela.bloco, parcela.faixa, parcela.parcela,
+          arvore.numeroArvore, arvore.numeroFuste, arvore.codigo,
+          arvore.x.toStringAsFixed(2), arvore.y.toStringAsFixed(2),
+          arvore.familia, arvore.nomeCientifico, arvore.nomePopular,
         ];
-
-        // CAP por ano
         for (final ano in anosOrdenados) {
-          final valorCap = capsPorAno[ano];
-          linha.add(valorCap != null ? valorCap.toStringAsFixed(2) : '');
+          linha.add(capsPorAno[ano] != null ? capsPorAno[ano]!.toStringAsFixed(2) : '');
         }
-
-        // HT
-        linha.add(arvore.hc != null ? arvore.hc.toStringAsFixed(2) : '');
-        linha.add(arvore.ht != null ? arvore.ht.toStringAsFixed(2) : '');
-
-        // Novos campos
-        linha.add(arvore.formaFuste ?? '');
-        linha.add(arvore.posiSoc ?? '');
-        linha.add(arvore.fitossanidade ?? '');
-        linha.add(arvore.formaCopa ?? '');
-        linha.add(arvore.posiCopa ?? '');
-
+        linha.addAll([
+          arvore.hc != null ? arvore.hc!.toStringAsFixed(2) : '',
+          arvore.ht != null ? arvore.ht!.toStringAsFixed(2) : '',
+          arvore.formaFuste ?? '', arvore.posiSoc ?? '',
+          arvore.fitossanidade ?? '', arvore.formaCopa ?? '',
+          arvore.posiCopa ?? '', arvore.dataIngresso ?? '',
+          arvore.infoMorte ?? '', arvore.dataMorte ?? '',
+          arvore.observation ?? '',
+        ]);
         csvData.add(linha);
       }
     }
 
-    String csv = const ListToCsvConverter().convert(csvData);
-    final bytes = csv.codeUnits;
-
-    final fileName = 'inventario_${inventario.nome}_${DateTime.now().millisecondsSinceEpoch}.csv';
-    final tempFile = await _saveTempFile(bytes, fileName);
-
-    await _shareFile(tempFile, 'Exportação CSV - ${inventario.nome}');
+    return const ListToCsvConverter().convert(csvData);
   }
 
-  // Exportar para XLSX com colunas CAP_ANO e novos campos ao final
-  Future<void> exportToXlsx(int inventarioId) async {
+  // ─────────────────────────────────────────────
+  // Geração de bytes XLSX
+  // ─────────────────────────────────────────────
+
+  Future<List<int>> _generateXlsxBytes(int inventarioId) async {
     final inventario = await _dbHelper.getInventario(inventarioId);
-    if (inventario == null) {
-      throw Exception('Inventário não encontrado');
-    }
+    if (inventario == null) throw Exception('Inventário não encontrado');
 
     final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
-
-    // Coletar todos os anos únicos de CAP
-    final todosAnos = await _obterTodosAnosCap(inventarioId);
-    final anosOrdenados = todosAnos.toList()..sort();
+    final anosOrdenados = (await _obterTodosAnosCap(inventarioId)).toList()..sort();
 
     var excel = Excel.createExcel();
     var sheet = excel['Inventario_${inventario.nome}'];
 
-    // Cabeçalho
     List<dynamic> cabecalho = [
-      'Inventario',
-      'Bloco',
-      'Faixa',
-      'Parcela',
-      'Árvore',
-      'Fuste',
-      'Codigo',
-      'X',
-      'Y',
-      'Familia',
-      'Nome_Cientifico',
-      'Nome_Popular',
+      'Inventario', 'Bloco', 'Faixa', 'Parcela', 'Árvore', 'Fuste',
+      'Codigo', 'X', 'Y', 'Familia', 'Nome_Cientifico', 'Nome_Popular',
     ];
-
-    for (final ano in anosOrdenados) {
-      cabecalho.add('CAP_$ano');
-    }
-    cabecalho.add('HC');
-    cabecalho.add('HT');
-
-    // Novas colunas
+    for (final ano in anosOrdenados) cabecalho.add('CAP_$ano');
     cabecalho.addAll([
-      'Forma_Fuste',
-      'Posicao_Social',
-      'Fitossanidade',
-      'Forma_Copa',
-      'Posicao_Copa',
+      'HC', 'HT', 'Forma_Fuste', 'Posicao_Social', 'Fitossanidade',
+      'Forma_Copa', 'Posicao_Copa', 'AnoIngresso', 'InfoMorta',
+      'AnoMorta', 'Observações',
     ]);
+    sheet.appendRow(_toCellValues(cabecalho));
 
-    sheet.appendRow(cabecalho);
-
-    // Dados
     for (final parcela in parcelas) {
       final arvores = await _dbHelper.getArvoresByParcela(parcela.id!);
-
       for (final arvore in arvores) {
-        final historicoCap = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
-        final capsPorAno = <int, double>{};
-        for (final item in historicoCap) {
-          capsPorAno[item.ano] = item.cap;
-        }
+        final capsPorAno = await _capsPorAno(arvore.id!);
 
         List<dynamic> linha = [
-          inventario.nome,
-          parcela.bloco,
-          parcela.faixa,
-          parcela.parcela,
-          arvore.numeroArvore,
-          arvore.numeroFuste,
-          arvore.codigo,
-          arvore.x,
-          arvore.y,
-          arvore.familia,
-          arvore.nomeCientifico,
-          arvore.nomePopular,
+          inventario.nome, parcela.bloco, parcela.faixa, parcela.parcela,
+          arvore.numeroArvore, arvore.numeroFuste, arvore.codigo,
+          arvore.x, arvore.y, arvore.familia,
+          arvore.nomeCientifico, arvore.nomePopular,
         ];
-
-        for (final ano in anosOrdenados) {
-          final valorCap = capsPorAno[ano];
-          linha.add(valorCap ?? '');
-        }
-
-        linha.add(arvore.hc);
-        linha.add(arvore.ht);
-
-        // Novos campos
-        linha.add(arvore.formaFuste ?? '');
-        linha.add(arvore.posiSoc ?? '');
-        linha.add(arvore.fitossanidade ?? '');
-        linha.add(arvore.formaCopa ?? '');
-        linha.add(arvore.posiCopa ?? '');
-
-        sheet.appendRow(linha);
+        for (final ano in anosOrdenados) linha.add(capsPorAno[ano] ?? '');
+        linha.addAll([
+          arvore.hc, arvore.ht, arvore.formaFuste ?? '',
+          arvore.posiSoc ?? '', arvore.fitossanidade ?? '',
+          arvore.formaCopa ?? '', arvore.posiCopa ?? '',
+          arvore.dataIngresso ?? 0, arvore.infoMorte ?? 0,
+          arvore.dataMorte ?? 0, arvore.observation,
+        ]);
+        sheet.appendRow(_toCellValues(linha));
       }
     }
 
-    final bytes = excel.encode()!;
-    final fileName = 'inventario_${inventario.nome}_${DateTime.now().millisecondsSinceEpoch}.xlsx';
-    final tempFile = await _saveTempFile(bytes, fileName);
-
-    await _shareFile(tempFile, 'Exportação Excel - ${inventario.nome}');
+    return excel.encode()!;
   }
 
-  // Método auxiliar para obter todos os anos únicos de CAP de um inventário
-  Future<Set<int>> _obterTodosAnosCap(int inventarioId) async {
-    final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
-    final todosAnos = <int>{};
+  // ─────────────────────────────────────────────
+  // Geração de conteúdo SQL
+  // ─────────────────────────────────────────────
 
-    for (final parcela in parcelas) {
-      final arvores = await _dbHelper.getArvoresByParcela(parcela.id!);
-
-      for (final arvore in arvores) {
-        final historico = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
-        for (final item in historico) {
-          todosAnos.add(item.ano);
-        }
-      }
-    }
-
-    return todosAnos;
-  }
-
-  // Exportar para SQL (mantido sem alterações, mas pode ser ajustado se necessário)
-  Future<void> exportToSql(int inventarioId) async {
+  Future<String> _generateSqlContent(int inventarioId) async {
     final inventario = await _dbHelper.getInventario(inventarioId);
-    if (inventario == null) {
-      throw Exception('Inventário não encontrado');
-    }
+    if (inventario == null) throw Exception('Inventário não encontrado');
 
     final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
-
     StringBuffer sql = StringBuffer();
 
     sql.writeln('-- Exportação do Inventário: ${inventario.nome}');
@@ -273,23 +202,17 @@ class ExportService {
 
     sql.writeln('-- Dados do Inventário');
     sql.writeln("INSERT INTO inventarios (id, nome, numero_blocos, numero_faixas, numero_parcelas, data_criacao) VALUES (");
-    sql.writeln("  ${inventario.id},");
-    sql.writeln("  '${_escapeSqlString(inventario.nome)}',");
-    sql.writeln("  ${inventario.numeroBlocos},");
-    sql.writeln("  ${inventario.numeroFaixas},");
-    sql.writeln("  ${inventario.numeroParcelas},");
-    sql.writeln("  '${inventario.dataCriacao}'");
+    sql.writeln("  ${inventario.id}, '${_escapeSqlString(inventario.nome)}',");
+    sql.writeln("  ${inventario.numeroBlocos}, ${inventario.numeroFaixas},");
+    sql.writeln("  ${inventario.numeroParcelas}, '${inventario.dataCriacao}'");
     sql.writeln(");");
     sql.writeln();
 
     sql.writeln('-- Dados das Parcelas');
     for (final parcela in parcelas) {
       sql.writeln("INSERT INTO parcelas (id, inventario_id, bloco, faixa, parcela, valor_arvores, concluida) VALUES (");
-      sql.writeln("  ${parcela.id},");
-      sql.writeln("  ${parcela.inventarioId},");
-      sql.writeln("  ${parcela.bloco},");
-      sql.writeln("  ${parcela.faixa},");
-      sql.writeln("  ${parcela.parcela},");
+      sql.writeln("  ${parcela.id}, ${parcela.inventarioId}, ${parcela.bloco},");
+      sql.writeln("  ${parcela.faixa}, ${parcela.parcela},");
       sql.writeln("  ${parcela.valorArvores != null ? "'${_escapeSqlString(parcela.valorArvores!)}'" : "NULL"},");
       sql.writeln("  ${parcela.concluida ? 1 : 0}");
       sql.writeln(");");
@@ -304,61 +227,133 @@ class ExportService {
 
       for (final arvore in arvores) {
         sql.writeln("INSERT INTO arvores (id, parcela_id, numero_arvore, codigo, x, y, familia, nome_cientifico, cap, ht) VALUES (");
-        sql.writeln("  ${arvore.id},");
-        sql.writeln("  ${arvore.parcelaId},");
-        sql.writeln("  ${arvore.numeroArvore},");
-        sql.writeln("  '${_escapeSqlString(arvore.codigo)}',");
-        sql.writeln("  ${arvore.x},");
-        sql.writeln("  ${arvore.y},");
-        sql.writeln("  '${_escapeSqlString(arvore.familia)}',");
-        sql.writeln("  '${_escapeSqlString(arvore.nomeCientifico)}',");
-        sql.writeln("  ${arvore.cap},");
-        sql.writeln("  ${arvore.ht}");
+        sql.writeln("  ${arvore.id}, ${arvore.parcelaId}, ${arvore.numeroArvore},");
+        sql.writeln("  '${_escapeSqlString(arvore.codigo)}', ${arvore.x}, ${arvore.y},");
+        sql.writeln("  '${_escapeSqlString(arvore.familia)}', '${_escapeSqlString(arvore.nomeCientifico)}',");
+        sql.writeln("  ${arvore.cap}, ${arvore.ht}");
         sql.writeln(");");
 
         final historicoCap = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
         for (final capItem in historicoCap) {
-          sql.writeln("INSERT INTO arvores_cap_historico (arvore_id, ano, cap) VALUES (");
-          sql.writeln("  ${arvore.id},");
-          sql.writeln("  ${capItem.ano},");
-          sql.writeln("  ${capItem.cap}");
-          sql.writeln(");");
+          sql.writeln("INSERT INTO arvores_cap_historico (arvore_id, ano, cap) VALUES (${arvore.id}, ${capItem.ano}, ${capItem.cap});");
         }
       }
     }
 
     sql.writeln();
     sql.writeln('-- Total de árvores exportadas: $totalArvores');
+    return sql.toString();
+  }
 
-    final sqlString = sql.toString();
-    final bytes = sqlString.codeUnits;
+  // ─────────────────────────────────────────────
+  // COMPARTILHAR via Share Sheet
+  // ─────────────────────────────────────────────
+
+  Future<void> exportToCsv(int inventarioId) async {
+    final inventario = await _dbHelper.getInventario(inventarioId);
+    if (inventario == null) throw Exception('Inventário não encontrado');
+    final content = await _generateCsvContent(inventarioId);
+    final file = await _saveTempFile(
+      content.codeUnits,
+      'inventario_${inventario.nome}_${DateTime.now().millisecondsSinceEpoch}.csv',
+    );
+    await _shareFile(file, 'Exportação CSV - ${inventario.nome}');
+  }
+
+  Future<void> exportToXlsx(int inventarioId) async {
+    final inventario = await _dbHelper.getInventario(inventarioId);
+    if (inventario == null) throw Exception('Inventário não encontrado');
+    final bytes = await _generateXlsxBytes(inventarioId);
+    final file = await _saveTempFile(
+      bytes,
+      'inventario_${inventario.nome}_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+    );
+    await _shareFile(file, 'Exportação Excel - ${inventario.nome}');
+  }
+
+  Future<void> exportToSql(int inventarioId) async {
+    final inventario = await _dbHelper.getInventario(inventarioId);
+    if (inventario == null) throw Exception('Inventário não encontrado');
+    final content = await _generateSqlContent(inventarioId);
+    final file = await _saveTempFile(
+      content.codeUnits,
+      'inventario_${inventario.nome}_${DateTime.now().millisecondsSinceEpoch}.sql',
+    );
+    await _shareFile(file, 'Exportação SQL - ${inventario.nome}');
+  }
+
+  // ─────────────────────────────────────────────
+  // SALVAR LOCALMENTE na pasta Documentos pública
+  // ─────────────────────────────────────────────
+
+  Future<File> saveCsvToDownloads(int inventarioId) async {
+    final inventario = await _dbHelper.getInventario(inventarioId);
+    if (inventario == null) throw Exception('Inventário não encontrado');
+    final content = await _generateCsvContent(inventarioId);
+    final dir = await _resolveLocalDirectory();
+    final fileName = 'inventario_${inventario.nome}_${DateTime.now().millisecondsSinceEpoch}.csv';
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsString(content, flush: true);
+    return file;
+  }
+
+  Future<File> saveXlsxToDownloads(int inventarioId) async {
+    final inventario = await _dbHelper.getInventario(inventarioId);
+    if (inventario == null) throw Exception('Inventário não encontrado');
+    final bytes = await _generateXlsxBytes(inventarioId);
+    final dir = await _resolveLocalDirectory();
+    final fileName = 'inventario_${inventario.nome}_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
+  }
+
+  Future<File> saveSqlToDownloads(int inventarioId) async {
+    final inventario = await _dbHelper.getInventario(inventarioId);
+    if (inventario == null) throw Exception('Inventário não encontrado');
+    final content = await _generateSqlContent(inventarioId);
+    final dir = await _resolveLocalDirectory();
     final fileName = 'inventario_${inventario.nome}_${DateTime.now().millisecondsSinceEpoch}.sql';
-    final tempFile = await _saveTempFile(bytes, fileName);
-
-    await _shareFile(tempFile, 'Exportação SQL - ${inventario.nome}');
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsString(content, flush: true);
+    return file;
   }
 
-  // Método para escapar strings SQL
-  String _escapeSqlString(String input) {
-    return input.replaceAll("'", "''");
+  // ─────────────────────────────────────────────
+  // Utilitários
+  // ─────────────────────────────────────────────
+
+  Future<Map<int, double>> _capsPorAno(int arvoreId) async {
+    final historico = await _dbHelper.getCapHistoricoByArvore(arvoreId);
+    return {for (final item in historico) item.ano: item.cap};
   }
 
-  // Método para obter estatísticas do inventário
+  String _escapeSqlString(String input) => input.replaceAll("'", "''");
+
+  Future<Set<int>> _obterTodosAnosCap(int inventarioId) async {
+    final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
+    final todosAnos = <int>{};
+    for (final parcela in parcelas) {
+      final arvores = await _dbHelper.getArvoresByParcela(parcela.id!);
+      for (final arvore in arvores) {
+        final historico = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
+        todosAnos.addAll(historico.map((e) => e.ano));
+      }
+    }
+    return todosAnos;
+  }
+
   Future<Map<String, dynamic>> getExportStats(int inventarioId) async {
     final inventario = await _dbHelper.getInventario(inventarioId);
-    if (inventario == null) {
-      throw Exception('Inventário não encontrado');
-    }
+    if (inventario == null) throw Exception('Inventário não encontrado');
 
     final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
     int totalArvores = 0;
-    final todosAnos = await _obterTodosAnosCap(inventarioId);
-
     for (final parcela in parcelas) {
-      final count = await _dbHelper.getArvoresCountByParcela(parcela.id!);
-      totalArvores += count;
+      totalArvores += await _dbHelper.getArvoresCountByParcela(parcela.id!);
     }
 
+    final todosAnos = await _obterTodosAnosCap(inventarioId);
     return {
       'nomeInventario': inventario.nome,
       'totalParcelas': parcelas.length,
@@ -371,26 +366,16 @@ class ExportService {
     };
   }
 
-  // Método para exportar dados brutos (útil para debug)
   Future<Map<String, dynamic>> exportRawData(int inventarioId) async {
     final inventario = await _dbHelper.getInventario(inventarioId);
-    if (inventario == null) {
-      throw Exception('Inventário não encontrado');
-    }
+    if (inventario == null) throw Exception('Inventário não encontrado');
 
     final parcelas = await _dbHelper.getParcelasByInventario(inventarioId);
     final List<Map<String, dynamic>> dadosCompletos = [];
 
     for (final parcela in parcelas) {
       final arvores = await _dbHelper.getArvoresByParcela(parcela.id!);
-
       for (final arvore in arvores) {
-        final historicoCap = await _dbHelper.getCapHistoricoByArvore(arvore.id!);
-        final capsPorAno = <int, double>{};
-        for (final item in historicoCap) {
-          capsPorAno[item.ano] = item.cap;
-        }
-
         dadosCompletos.add({
           'inventario': inventario.nome,
           'bloco': parcela.bloco,
@@ -398,15 +383,12 @@ class ExportService {
           'parcela': parcela.parcela,
           'numero_arvore': arvore.numeroArvore,
           'codigo': arvore.codigo,
-          'x': arvore.x,
-          'y': arvore.y,
+          'x': arvore.x, 'y': arvore.y,
           'familia': arvore.familia,
           'nome_cientifico': arvore.nomeCientifico,
           'nome_popular': arvore.nomePopular,
-          'historico_cap': capsPorAno,
-          'hc': arvore.hc,
-          'ht': arvore.ht,
-          // Novos campos adicionados para consistência (opcional)
+          'historico_cap': await _capsPorAno(arvore.id!),
+          'hc': arvore.hc, 'ht': arvore.ht,
           'forma_fuste': arvore.formaFuste,
           'posicao_social': arvore.posiSoc,
           'fitossanidade': arvore.fitossanidade,
