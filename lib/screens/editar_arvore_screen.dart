@@ -30,7 +30,9 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   final _nomePopularController = TextEditingController();
   final _dapController = TextEditingController();
   final _hcController = TextEditingController();
+  final _anoHCController = TextEditingController();
   final _htController = TextEditingController();
+  final _anoHTController = TextEditingController();
   final _observationController = TextEditingController();
 
   // Variável para o dropdown de código
@@ -47,6 +49,9 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   double _dapMinimo = 31.4;
   bool _dapAbaixoMinimo = false;
   int _anoInventario = DateTime.now().year;
+
+  double? _capAnoAnterior;
+  bool _capMenorQueAnoAnterior = false;
 
   // Variáveis para o sistema de taxonomia
   List<String> _familiasFiltradas = [];
@@ -93,6 +98,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     _selecteddataIngresso = widget.arvore?.dataIngresso;
     _selectedinfoMorta = widget.arvore?.infoMorte ?? 0;
     _selecteddataMorta = widget.arvore?.dataMorte;
+
+    // Guardar o CAP do ano anterior para comparação
+    if (widget.arvore != null && widget.arvore!.cap > 0) {
+      _capAnoAnterior = widget.arvore!.cap;
+    }
   }
 
   void _configurarListeners() {
@@ -229,6 +239,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     final dap = double.tryParse(value) ?? 0.0;
     setState(() {
       _dapAbaixoMinimo = dap < _dapMinimo && dap > 0;
+      _capMenorQueAnoAnterior =
+          _capAnoAnterior != null && dap > 0 && dap < _capAnoAnterior!;
     });
   }
 
@@ -266,8 +278,12 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     );
 
     if (confirm == true) {
-      _selectedinfoMorta = 1;
-      _selecteddataMorta = 2026;
+      if (_selectedinfoMorta == 0) {
+        _selectedinfoMorta = 1;
+        _selecteddataMorta = 2026;
+      }
+      _selectedinfoMorta = 0;
+      _selecteddataMorta = null;
       print('teste');
     }
   }
@@ -287,6 +303,22 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           }
         }
 
+        // Verificar se o CAP atual é menor que o CAP do ano anterior
+        if (_capAnoAnterior != null && dapInserido > 0 && dapInserido < _capAnoAnterior!) {
+          final bool? confirmar = await _mostrarAvisoCapMenorAnoAnterior(dapInserido);
+          if (confirmar != true) {
+            return;
+          }
+        }
+
+        // Verificar se o CAP atual é menor que o CAP do ano anterior
+        if (_capAnoAnterior != null && dapInserido > 0 && (dapInserido - _capAnoAnterior!) > 8.0) {
+          final bool? confirmar = await _mostrarAvisoCapMaiorLimite(dapInserido);
+          if (confirmar != true) {
+            return;
+          }
+        }
+
         final arvore = Arvore(
           id: widget.arvore?.id ?? 0,
           parcelaId: widget.parcelaId,
@@ -300,7 +332,9 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           nomePopular: _nomePopularController.text,
           cap: cap,
           hc: _parseDoubleSafe(_hcController.text),
+          anoHC: _parseIntSafe(_anoHCController.text),
           ht: _parseDoubleSafe(_htController.text),
+          anoHT: _parseIntSafe(_anoHTController.text),
           formaFuste: _selectedFormaFuste,
           posiSoc: _selectedPosiSoc,
           fitossanidade: _selectedFito,
@@ -379,6 +413,134 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
               onPressed: () => Navigator.of(context).pop(true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange.shade700,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Salvar Mesmo Assim'),
+            ),
+          ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool?> _mostrarAvisoCapMenorAnoAnterior(double capAtual) async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.trending_down, color: Colors.red.shade700),
+              SizedBox(width: 8),
+              Text('CAP Menor que Ano Anterior'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 120,
+                width: double.maxFinite,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/aviso_cap.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'O CAP informado (${capAtual.toStringAsFixed(1)} cm) é menor que o CAP registrado no inventário anterior (${_capAnoAnterior!.toStringAsFixed(1)} cm).',
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Normalmente o CAP de uma árvore não diminui entre inventários. Isso pode indicar um erro de digitação.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+              SizedBox(height: 8),
+              Text('Deseja salvar mesmo assim?'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Corrigir CAP'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Salvar Mesmo Assim'),
+            ),
+          ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool?> _mostrarAvisoCapMaiorLimite(double capAtual) async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.trending_down, color: Colors.red.shade700),
+              SizedBox(width: 8),
+              Text('CAP maior que o limite definido'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 120,
+                width: double.maxFinite,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/aviso_cap.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'O CAP informado (${capAtual.toStringAsFixed(1)} cm) apresenta uma diferença maior que 8.0 cm em relação a medição anterior (${_capAnoAnterior!.toStringAsFixed(1)} cm).',
+              ),
+              SizedBox(height: 8),
+              Text(
+                'O CAP informado apresenta uma diferença maior que o limite de 8 cm definido para o período',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+              SizedBox(height: 8),
+              Text('Deseja salvar mesmo assim?'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Corrigir CAP'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
                 foregroundColor: Colors.white,
               ),
               child: Text('Salvar Mesmo Assim'),
@@ -622,12 +784,50 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                   ),
                   SizedBox(height: 16),
 
-                  Card(
-                    elevation: 4,
-                    shadowColor: Colors.black26,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                  // Card de aviso: CAP menor que ano anterior
+                  if (_capAnoAnterior != null)
+                    Card(
+                      elevation: 4,
+                      shadowColor: Colors.black26,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      color: _capMenorQueAnoAnterior
+                          ? Colors.red.shade50
+                          : Colors.blue.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _capMenorQueAnoAnterior
+                                  ? Icons.trending_down
+                                  : Icons.history,
+                              color: _capMenorQueAnoAnterior
+                                  ? Colors.red.shade700
+                                  : Colors.blue.shade700,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _capMenorQueAnoAnterior
+                                    ? 'CAP menor que o ano anterior (${_capAnoAnterior!.toStringAsFixed(1)} cm)'
+                                    : 'CAP do inventário anterior: ${_capAnoAnterior!.toStringAsFixed(1)} cm',
+                                style: TextStyle(
+                                  color: _capMenorQueAnoAnterior
+                                      ? Colors.red.shade800
+                                      : Colors.blue.shade800,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                  SizedBox(height: 16),
+
+                  Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -777,6 +977,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             onChanged: _validarDAP,
                             errorText: _dapAbaixoMinimo ? 'CAP abaixo do mínimo' : null,
                             validator: (value) {
+
+                              if (_selectedinfoMorta == 1 && (value == null || value.isEmpty)) {
+                                return null; // válido
+                              }
+
                               if (value == null || value.isEmpty) {
                                 return 'Por favor, insira o CAP';
                               }

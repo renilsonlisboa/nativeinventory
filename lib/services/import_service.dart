@@ -111,8 +111,8 @@ class ImportService {
         final linha = linhas[i];
         totalLinhasProcessadas++;
 
-        // Validar linha básica - agora precisamos de pelo menos 9 colunas (até nome_cientifico)
-        if (linha.length < 10) {
+        // FIX Bug 3: validar com >= 11 para garantir acesso seguro a linha[10]
+        if (linha.length < 11) {
           _adicionarLog('ERRO Linha ${i + 1}: Número insuficiente de colunas (${linha.length})');
           totalLinhasComErro++;
           continue;
@@ -167,7 +167,6 @@ class ImportService {
       Map<int, int> colunasCap) {
 
     try {
-      // Extrair dados básicos
       final bloco = int.tryParse(linha[0].toString()) ?? 1;
       final parcela = int.tryParse(linha[1].toString()) ?? 1;
       final faixa = int.tryParse(linha[2].toString()) ?? 1;
@@ -198,13 +197,22 @@ class ImportService {
         }
       }
 
-      final hc = double.tryParse(linha[linha.length-7]?.toString() ?? '') ?? 0.0;
-      final ht = double.tryParse(linha[linha.length-6].toString()) ?? 0.0;
-      final formaFuste = int.tryParse(linha[linha.length-5].toString()) ?? 0;
-      final posiSoc = int.tryParse(linha[linha.length-4].toString()) ?? 0;
-      final fitossanidade = int.tryParse(linha[linha.length-3].toString()) ?? 0;
-      final posiCopa = int.tryParse(linha[linha.length-2].toString()) ?? 0;
-      final formaCopa = int.tryParse(linha[linha.length-1].toString()) ?? 0;
+      final hc = double.tryParse(linha[linha.length-13].toString()) ?? null;
+      final anoHC = int.tryParse(linha[linha.length-12].toString()) ?? null;
+
+      final ht = double.tryParse(linha[linha.length-11].toString()) ?? null;
+      final anoHT = int.tryParse(linha[linha.length-10].toString()) ?? null;
+
+      final formaFuste = int.tryParse(linha[linha.length-9].toString()) ?? 0;
+      final posiSoc = int.tryParse(linha[linha.length-8].toString()) ?? 0;
+      final fitossanidade = int.tryParse(linha[linha.length-7].toString()) ?? 0;
+      final posiCopa = int.tryParse(linha[linha.length-6].toString()) ?? 0;
+      final formaCopa = int.tryParse(linha[linha.length-5].toString()) ?? 0;
+
+      final anoIngresso = int.tryParse(linha[linha.length-4].toString()) ?? null;
+      final infoMorta = int.tryParse(linha[linha.length-3].toString()) ?? null;
+      final anoMorta = int.tryParse(linha[linha.length-2].toString()) ?? null;
+      final observacoes = linha[linha.length-1].toString().trim();
 
       if (capsPorAno.isEmpty) {
         _adicionarLog('ERRO Linha $numeroLinha: Nenhum CAP válido encontrado');
@@ -231,13 +239,18 @@ class ImportService {
         'caps_por_ano': capsPorAno,
         'cap': cap,
         'hc': hc,
+        'anoHC': anoHC,
         'ht': ht,
-        'ano_mais_recente': anoMaisRecente,
+        'anoHT': anoHT,
         'formaFuste': formaFuste,
         'posiSoc': posiSoc,
         'fitossanidade': fitossanidade,
         'posiCopa': posiCopa,
         'formaCopa': formaCopa,
+        'anoIngresso': anoIngresso,
+        'infoMorta': infoMorta,
+        'anoMorta': anoMorta,
+        'observacoes': observacoes,
       };
     } catch (e) {
       _adicionarLog('ERRO Linha $numeroLinha: Erro ao extrair dados - $e');
@@ -263,7 +276,8 @@ class ImportService {
     if (arvoreExistente.isNotEmpty) {
       arvoreId = arvoreExistente.first['id'] as int;
 
-      // Atualizar dados da árvore existente
+      // FIX Bug 2: usar os nomes de coluna corretos do banco (dataIngresso, infoMorte, dataMorte, observation)
+      // e as chaves corretas do mapa dados
       await db.update('arvores', {
         'numero_fuste': dados['fuste'],
         'codigo': dados['codigo'],
@@ -274,15 +288,21 @@ class ImportService {
         'nome_popular': dados['nome_popular'],
         'cap': dados['cap'],
         'hc': dados['hc'],
+        'anoHC': dados['anoHC'],
         'ht': dados['ht'],
+        'anoHT': dados['anoHT'],
         'formaFuste': dados['formaFuste'],
         'posiSoc': dados['posiSoc'],
         'fitossanidade': dados['fitossanidade'],
         'posiCopa': dados['posiCopa'],
         'formaCopa': dados['formaCopa'],
+        'dataIngresso': dados['anoIngresso'],
+        'infoMorte': dados['infoMorta'],
+        'dataMorte': dados['anoMorta'],
+        'observation': dados['observacoes'],
       }, where: 'id = ?', whereArgs: [arvoreId]);
     } else {
-      // Inserir nova árvore
+      // FIX Bug 1: usar os nomes de coluna corretos do banco e as chaves corretas do mapa dados
       arvoreId = await db.insert('arvores', {
         'parcela_id': parcelaId,
         'numero_arvore': dados['arvore'],
@@ -295,13 +315,18 @@ class ImportService {
         'nome_popular': dados['nome_popular'],
         'cap': dados['cap'],
         'hc': dados['hc'],
+        'anoHC': dados['anoHC'],
         'ht': dados['ht'],
+        'anoHT': dados['anoHT'],
         'formaFuste': dados['formaFuste'],
         'posiSoc': dados['posiSoc'],
         'fitossanidade': dados['fitossanidade'],
         'posiCopa': dados['posiCopa'],
         'formaCopa': dados['formaCopa'],
-
+        'dataIngresso': dados['anoIngresso'],   // coluna DB: dataIngresso | chave dados: anoIngresso
+        'infoMorte': dados['infoMorta'],        // coluna DB: infoMorte    | chave dados: infoMorta
+        'dataMorte': dados['anoMorta'],         // coluna DB: dataMorte    | chave dados: anoMorta
+        'observation': dados['observacoes'],    // coluna DB: observation  | chave dados: observacoes
       });
       novaArvore = true;
     }

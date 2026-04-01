@@ -91,7 +91,7 @@ class ExportService {
     List<List<dynamic>> csvData = [];
 
     List<dynamic> cabecalho = [
-      'Inventario', 'Bloco', 'Faixa', 'Parcela', 'Arvore', 'Fuste',
+      'Inventario', 'Bloco', 'Parcela', 'Faixa', 'Arvore', 'Fuste',
       'Codigo', 'X', 'Y', 'Familia', 'Nome_Cientifico', 'Nome_Popular',
     ];
     for (final ano in anosOrdenados) cabecalho.add('CAP_$ano');
@@ -108,7 +108,7 @@ class ExportService {
         final capsPorAno = await _capsPorAno(arvore.id!);
 
         List<dynamic> linha = [
-          inventario.nome, parcela.bloco, parcela.faixa, parcela.parcela,
+          inventario.nome, parcela.bloco, parcela.parcela, parcela.faixa,
           arvore.numeroArvore, arvore.numeroFuste, arvore.codigo,
           arvore.x.toStringAsFixed(2), arvore.y.toStringAsFixed(2),
           arvore.familia, arvore.nomeCientifico, arvore.nomePopular,
@@ -147,7 +147,7 @@ class ExportService {
     var sheet = excel['Inventario_${inventario.nome}'];
 
     List<dynamic> cabecalho = [
-      'Inventario', 'Bloco', 'Faixa', 'Parcela', 'Árvore', 'Fuste',
+      'Inventario', 'Bloco', 'Parcela', 'Faixa', 'Árvore', 'Fuste',
       'Codigo', 'X', 'Y', 'Familia', 'Nome_Cientifico', 'Nome_Popular',
     ];
     for (final ano in anosOrdenados) cabecalho.add('CAP_$ano');
@@ -164,7 +164,7 @@ class ExportService {
         final capsPorAno = await _capsPorAno(arvore.id!);
 
         List<dynamic> linha = [
-          inventario.nome, parcela.bloco, parcela.faixa, parcela.parcela,
+          inventario.nome, parcela.bloco, parcela.parcela, parcela.faixa,
           arvore.numeroArvore, arvore.numeroFuste, arvore.codigo,
           arvore.x, arvore.y, arvore.familia,
           arvore.nomeCientifico, arvore.nomePopular,
@@ -383,17 +383,25 @@ class ExportService {
           'parcela': parcela.parcela,
           'numero_arvore': arvore.numeroArvore,
           'codigo': arvore.codigo,
-          'x': arvore.x, 'y': arvore.y,
+          'x': arvore.x,
+          'y': arvore.y,
           'familia': arvore.familia,
           'nome_cientifico': arvore.nomeCientifico,
           'nome_popular': arvore.nomePopular,
           'historico_cap': await _capsPorAno(arvore.id!),
-          'hc': arvore.hc, 'ht': arvore.ht,
+          'hc': arvore.hc,
+          'anoHC': arvore.anoHC,
+          'ht': arvore.ht,
+          'anoHT': arvore.anoHT,
           'forma_fuste': arvore.formaFuste,
           'posicao_social': arvore.posiSoc,
           'fitossanidade': arvore.fitossanidade,
           'forma_copa': arvore.formaCopa,
           'posicao_copa': arvore.posiCopa,
+          'anoIngresso': arvore.dataIngresso,
+          'infoMorta': arvore.infoMorte,
+          'anoMorta': arvore.dataMorte,
+          'observation': arvore.observation,
         });
       }
     }

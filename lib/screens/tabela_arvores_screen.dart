@@ -291,8 +291,9 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
         textAlign: TextAlign.center,
       ),
     );
-    cells.add(_buildDataCell(arvore.hc.toStringAsFixed(2), arvore));
-    cells.add(_buildDataCell(arvore.ht.toStringAsFixed(2), arvore));
+
+    cells.add(_buildDataCell(arvore.hc?.toStringAsFixed(2) ?? '-', arvore));
+    cells.add(_buildDataCell(arvore.ht?.toStringAsFixed(2) ?? '-', arvore));
     cells.add(_buildDataCell(
         arvore.formaFuste == 0 ? '-' : arvore.formaFuste.toString(), arvore));
     cells.add(_buildDataCell(

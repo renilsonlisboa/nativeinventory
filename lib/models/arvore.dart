@@ -10,8 +10,10 @@ class Arvore {
   final String nomeCientifico;
   final String? nomePopular;
   final double cap;
-  final double hc;
-  final double ht;
+  final double? hc;
+  final int? anoHC;
+  final double? ht;
+  final int? anoHT;
   final int? formaFuste;
   final int? posiSoc;
   final int? fitossanidade;
@@ -35,7 +37,9 @@ class Arvore {
     required this.nomePopular,
     required this.cap,
     required this.hc,
+    required this.anoHC,
     required this.ht,
+    required this.anoHT,
     required this.formaFuste,
     required this.posiSoc,
     required this.fitossanidade,
@@ -62,7 +66,9 @@ class Arvore {
       'nome_popular': nomePopular,
       'cap': cap,
       'hc': hc,
+      'anoHC': anoHC,
       'ht': ht,
+      'anoHT': anoHT,
       'formaFuste': formaFuste,
       'posiSoc': posiSoc,
       'fitossanidade': fitossanidade,
@@ -89,7 +95,9 @@ class Arvore {
       nomePopular: map['nome_popular'],
       cap: map['cap'],
       hc: map['hc'],
+      anoHC: (map['anoHC'] as num?)?.toInt(),   // ← conversão
       ht: map['ht'],
+      anoHT: (map['anoHT'] as num?)?.toInt(),   // ← conversão
       formaFuste: map['formaFuste'],
       posiSoc: map['posiSoc'],
       fitossanidade: map['fitossanidade'],
@@ -109,8 +117,8 @@ class Arvore {
   Map<String, double> getMedicoesPorAno(int ano) {
     return {
       'CAP_$ano': cap,
-      'HC_$ano': hc,
-      'HT_$ano': ht,
+      'HC_$ano': hc!,
+      'HT_$ano': ht!,
     };
   }
 }
