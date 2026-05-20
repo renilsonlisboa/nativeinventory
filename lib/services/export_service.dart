@@ -122,7 +122,7 @@ class ExportService {
     ];
     for (final ano in anosOrdenados) cabecalho.add('CAP_$ano');
     cabecalho.addAll([
-      'HC', 'HT', 'Forma_Fuste', 'Posicao_Social', 'Fitossanidade',
+      'HC','anoHC', 'HT', 'anoHT', 'Forma_Fuste', 'Posicao_Social', 'Fitossanidade',
       'Forma_Copa', 'Posicao_Copa', 'Ano_Ingresso', 'Info_Morta',
       'Ano_Morta', 'Observacoes',
     ]);
@@ -146,7 +146,9 @@ class ExportService {
         }
         linha.addAll([
           arvore.hc != null ? arvore.hc!.toStringAsFixed(2) : '',
+          arvore.anoHC ?? '',
           arvore.ht != null ? arvore.ht!.toStringAsFixed(2) : '',
+          arvore.anoHT ?? '',
           arvore.formaFuste ?? '', arvore.posiSoc ?? '',
           arvore.fitossanidade ?? '', arvore.formaCopa ?? '',
           arvore.posiCopa ?? '', arvore.dataIngresso ?? '',
@@ -185,7 +187,7 @@ class ExportService {
     ];
     for (final ano in anosOrdenados) cabecalho.add('CAP_$ano');
     cabecalho.addAll([
-      'HC', 'HT', 'Forma_Fuste', 'Posicao_Social', 'Fitossanidade',
+      'HC', 'anoHC' 'HT', 'anoHT' 'Forma_Fuste', 'Posicao_Social', 'Fitossanidade',
       'Forma_Copa', 'Posicao_Copa', 'AnoIngresso', 'InfoMorta',
       'AnoMorta', 'Observações',
     ]);
@@ -204,11 +206,19 @@ class ExportService {
         ];
         for (final ano in anosOrdenados) linha.add(capsPorAno[ano] ?? '');
         linha.addAll([
-          arvore.hc, arvore.ht, arvore.formaFuste ?? '',
-          arvore.posiSoc ?? '', arvore.fitossanidade ?? '',
-          arvore.formaCopa ?? '', arvore.posiCopa ?? '',
-          arvore.dataIngresso ?? 0, arvore.infoMorte ?? 0,
-          arvore.dataMorte ?? 0, arvore.observation,
+          arvore.hc,
+          arvore.anoHC ?? '',
+          arvore.ht,
+          arvore.anoHT ?? '',
+          arvore.formaFuste ?? '',
+          arvore.posiSoc ?? '',
+          arvore.fitossanidade ?? '',
+          arvore.formaCopa ?? '',
+          arvore.posiCopa ?? '',
+          arvore.dataIngresso ?? 0,
+          arvore.infoMorte ?? 0,
+          arvore.dataMorte ?? 0,
+          arvore.observation,
         ]);
         sheet.appendRow(_toCellValues(linha));
       }
