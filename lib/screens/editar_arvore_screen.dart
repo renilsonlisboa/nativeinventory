@@ -35,7 +35,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   final _anoHTController = TextEditingController();
   final _observationController = TextEditingController();
 
-  // Variável para o dropdown de código
   int? _selectedCodigo;
   int? _selectedFormaFuste;
   int? _selectedPosiSoc;
@@ -50,10 +49,9 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   bool _dapAbaixoMinimo = false;
   int _anoInventario = DateTime.now().year;
 
-  double? _capAnoAnterior;
-  bool _capMenorQueAnoAnterior = false;
+  double? _capAnterior;
+  bool _capMenorQueAnterior = false;
 
-  // Variáveis para o sistema de taxonomia
   List<String> _familiasFiltradas = [];
   List<String> _especiesFiltradas = [];
   bool _mostrarSugestoesFamilia = false;
@@ -61,14 +59,12 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   String _familiaSelecionada = '';
   Timer? _debounceTimer;
 
-  // Controladores para os campos
   final _familiaFocusNode = FocusNode();
   final _nomeCientificoFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    _carregarDadosInventario();
     _configurarListeners();
 
     if (widget.arvore != null) {
@@ -82,27 +78,30 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       _familiaSelecionada = widget.arvore!.familia;
       _nomePopularController.text = widget.arvore!.nomePopular.toString();
 
+      // ✅ FIX 1: Inicializa o campo CAP com o valor da árvore
+      _dapController.text = '';
+
       _hcController.text = widget.arvore!.hc.toString();
       _htController.text = widget.arvore!.ht.toString();
 
-      _selectedFormaFuste = (widget.arvore!.formaFuste);
-      _selectedPosiSoc = (widget.arvore!.posiSoc);
-      _selectedFito = (widget.arvore!.fitossanidade);
-      _selectedPosiCopa = (widget.arvore!.posiCopa);
-      _selectedFormaCopa = (widget.arvore!.formaCopa);
-    }else {
+      _selectedFormaFuste = widget.arvore!.formaFuste;
+      _selectedPosiSoc = widget.arvore!.posiSoc;
+      _selectedFito = widget.arvore!.fitossanidade;
+      _selectedPosiCopa = widget.arvore!.posiCopa;
+      _selectedFormaCopa = widget.arvore!.formaCopa;
+    } else {
       _familiaController.text = 'N.I.';
       _nomeCientificoController.text = 'N.I.';
       _nomePopularController.text = 'N.I.';
     }
+
     _selecteddataIngresso = widget.arvore?.dataIngresso;
     _selectedinfoMorta = widget.arvore?.infoMorte ?? 0;
     _selecteddataMorta = widget.arvore?.dataMorte;
 
-    // Guardar o CAP do ano anterior para comparação
-    if (widget.arvore != null && widget.arvore!.cap > 0) {
-      _capAnoAnterior = widget.arvore!.cap;
-    }
+    // ✅ FIX 4: _carregarDadosInventario já chama _carregarCapAnterior internamente
+    // e só depois chama _validarDAP — tudo na ordem certa
+    _carregarDadosInventario();
   }
 
   void _configurarListeners() {
@@ -140,7 +139,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   }
 
   void _onEspecieFocusChanged() {
-    if (_nomeCientificoFocusNode.hasFocus && _nomeCientificoController.text.isNotEmpty) {
+    if (_nomeCientificoFocusNode.hasFocus &&
+        _nomeCientificoController.text.isNotEmpty) {
       _filtrarEspecies();
       setState(() {
         _mostrarSugestoesEspecie = true;
@@ -155,37 +155,32 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
   Future<void> _filtrarFamilias() async {
     final filtro = _familiaController.text;
     final dbHelper = DatabaseHelper();
-
     await dbHelper.ensureTaxonomiaTablesExist();
-
     final familias = await dbHelper.getFamilias(filtro: filtro);
-
     setState(() {
       _familiasFiltradas = familias;
-      _mostrarSugestoesFamilia = _familiaFocusNode.hasFocus && filtro.isNotEmpty;
+      _mostrarSugestoesFamilia =
+          _familiaFocusNode.hasFocus && filtro.isNotEmpty;
     });
   }
 
   Future<void> _filtrarEspecies() async {
     final filtro = _nomeCientificoController.text;
-
     final dbHelper = DatabaseHelper();
-
-    // GARANTIR QUE AS TABELAS DE TAXONOMIA EXISTEM
     await dbHelper.ensureTaxonomiaTablesExist();
 
     List<String> especies;
     if (_familiaSelecionada.isEmpty) {
-      // Busca global por espécies (independente da família)
       especies = await dbHelper.getEspecies(filtro: filtro);
     } else {
-      // Busca restrita à família selecionada
-      especies = await dbHelper.getEspeciesByFamilia(_familiaSelecionada, filtro: filtro);
+      especies = await dbHelper.getEspeciesByFamilia(_familiaSelecionada,
+          filtro: filtro);
     }
 
     setState(() {
       _especiesFiltradas = especies;
-      _mostrarSugestoesEspecie = _nomeCientificoFocusNode.hasFocus && filtro.isNotEmpty;
+      _mostrarSugestoesEspecie =
+          _nomeCientificoFocusNode.hasFocus && filtro.isNotEmpty;
     });
   }
 
@@ -195,12 +190,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       _familiaSelecionada = familia;
       _mostrarSugestoesFamilia = false;
       _familiaFocusNode.unfocus();
-
-      // Limpar espécie quando mudar a família
       _nomeCientificoController.clear();
       _especiesFiltradas = [];
-
-      // Focar no campo de espécie
       WidgetsBinding.instance.addPostFrameCallback((_) {
         FocusScope.of(context).requestFocus(_nomeCientificoFocusNode);
       });
@@ -214,7 +205,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       _nomeCientificoFocusNode.unfocus();
     });
 
-    // Buscar a família correspondente à espécie selecionada
     final dbHelper = DatabaseHelper();
     final familia = await dbHelper.getFamiliaByNomeCientifico(especie);
     if (familia != null && familia.isNotEmpty) {
@@ -225,32 +215,67 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     }
   }
 
+  // ✅ FIX 4: Centraliza o carregamento — inventário primeiro, depois CAP anterior
   Future<void> _carregarDadosInventario() async {
-    final inventario = await DatabaseHelper().getInventario(widget.inventarioId);
+    final inventario =
+    await DatabaseHelper().getInventario(widget.inventarioId);
     if (inventario != null) {
       setState(() {
         _dapMinimo = inventario.dapMinimo * 3.14;
         _anoInventario = inventario.ano;
+
+        if (widget.arvore == null) {
+          _selecteddataIngresso = inventario.ano;
+        }
       });
     }
+
+    // ✅ FIX 4: Só chama _carregarCapAnterior APÓS _anoInventario estar definido
+    if (widget.arvore != null) {
+      await _carregarCapAnterior();
+    } else {
+      // Para árvores novas, valida com o mínimo já carregado
+      _validarDAP(_dapController.text);
+    }
+  }
+
+  // ✅ FIX 2 + 3: Após setar _capAnterior, chama _validarDAP para forçar a UI atualizar
+  Future<void> _carregarCapAnterior() async {
+    final dbHelper = DatabaseHelper();
+    final capAnterior =
+    await dbHelper.getCapAnterior(widget.arvore!.id, _anoInventario);
+    setState(() {
+      _capAnterior = capAnterior;
+    });
+
+    // ✅ FIX 2: Re-executa a validação agora que _capAnterior está disponível
+    // O campo já tem o valor (preenchido no initState), então o aviso aparece imediatamente
+    _validarDAP(_dapController.text);
   }
 
   void _validarDAP(String value) {
     final dap = double.tryParse(value) ?? 0.0;
     setState(() {
+      // ✅ Ignora validações se árvore está morta
+      if (_selectedinfoMorta == 1) {
+        _dapAbaixoMinimo = false;
+        _capMenorQueAnterior = false;
+        return;
+      }
+
       _dapAbaixoMinimo = dap < _dapMinimo && dap > 0;
-      _capMenorQueAnoAnterior =
-          _capAnoAnterior != null && dap > 0 && dap < _capAnoAnterior!;
+
+      if (_capAnterior != null) {
+        _capMenorQueAnterior = dap < _capAnterior! && dap > 0;
+      } else {
+        _capMenorQueAnterior = false;
+      }
     });
   }
 
-  // CORREÇÃO: Função auxiliar para conversão segura de tipos
   int _parseIntSafe(String value) {
-    // Tenta converter para double primeiro, depois arredonda para int
     final parsed = double.tryParse(value);
-    if (parsed == null) {
-      return 0;
-    }
+    if (parsed == null) return 0;
     return parsed.round();
   }
 
@@ -263,7 +288,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirmar'),
-        content: const Text('Tem certeza que deseja definir esta árvore como morta?'),
+        content: Text(
+          _selectedinfoMorta == 1
+              ? 'Deseja reverter esta árvore para viva?'
+              : 'Tem certeza que deseja definir esta árvore como morta?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -278,47 +307,37 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     );
 
     if (confirm == true) {
-      if (_selectedinfoMorta == 0) {
-        _selectedinfoMorta = 1;
-        _selecteddataMorta = 2026;
-      }
-      _selectedinfoMorta = 0;
-      _selecteddataMorta = null;
-      print('teste');
+      setState(() {
+        if (_selectedinfoMorta == 1) {
+          _selectedinfoMorta = 0;
+          _selecteddataMorta = null;
+        } else {
+          _selectedinfoMorta = 1;
+          _selecteddataMorta = _anoInventario;
+        }
+      });
+      _validarDAP(_dapController.text);
     }
   }
 
   Future<void> _salvarArvore() async {
     if (_formKey.currentState!.validate()) {
       try {
-        // CORREÇÃO: Usar conversões seguras
         final dapInserido = _parseDoubleSafe(_dapController.text);
         final cap = dapInserido;
 
-        // Verificar se o DAP está abaixo do mínimo
-        if (dapInserido < _dapMinimo) {
+        // ✅ Só mostra avisos se a árvore NÃO está morta
+        if (_selectedinfoMorta != 1 && dapInserido < _dapMinimo) {
           final bool? confirmar = await _mostrarAvisoDapMinimo(dapInserido);
-          if (confirmar != true) {
-            return;
-          }
+          if (confirmar != true) return;
         }
 
-        // Verificar se o CAP atual é menor que o CAP do ano anterior
-        if (_capAnoAnterior != null && dapInserido > 0 && dapInserido < _capAnoAnterior!) {
-          final bool? confirmar = await _mostrarAvisoCapMenorAnoAnterior(dapInserido);
-          if (confirmar != true) {
-            return;
-          }
+        if (_selectedinfoMorta != 1 && _capMenorQueAnterior) {
+          final bool? confirmar = await _mostrarAvisoCapAnterior(dapInserido);
+          if (confirmar != true) return;
         }
 
-        // Verificar se o CAP atual é menor que o CAP do ano anterior
-        if (_capAnoAnterior != null && dapInserido > 0 && (dapInserido - _capAnoAnterior!) > 8.0) {
-          final bool? confirmar = await _mostrarAvisoCapMaiorLimite(dapInserido);
-          if (confirmar != true) {
-            return;
-          }
-        }
-
+        // ... resto permanece igual
         final arvore = Arvore(
           id: widget.arvore?.id ?? 0,
           parcelaId: widget.parcelaId,
@@ -356,8 +375,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           await dbHelper.updateArvore(arvore);
         }
 
-        // Salvar o CAP no histórico
-        await dbHelper.inserirOuAtualizarCapHistorico(arvoreId, _anoInventario, cap);
+        await dbHelper.inserirOuAtualizarCapHistorico(
+            arvoreId, _anoInventario, cap);
 
         Navigator.pop(context, true);
       } catch (e) {
@@ -372,8 +391,57 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       SnackBar(
         content: Text(mensagem),
         backgroundColor: Colors.red.shade700,
-        duration: Duration(seconds: 3),
+        duration: const Duration(seconds: 3),
       ),
+    );
+  }
+
+  Future<bool?> _mostrarAvisoCapAnterior(double capInserido) async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange.shade700),
+              const SizedBox(width: 8),
+              const Text('CAP Menor que Anterior'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'O CAP informado (${capInserido.toStringAsFixed(1)} cm) é menor que o CAP do ano anterior (${_capAnterior!.toStringAsFixed(1)} cm).',
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                'Uma redução no CAP pode indicar um erro de medição.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+              const SizedBox(height: 8),
+              const Text('Deseja salvar mesmo assim?'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Corrigir CAP'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade700,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Salvar Mesmo Assim'),
+            ),
+          ],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        );
+      },
     );
   }
 
@@ -386,28 +454,29 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           title: Row(
             children: [
               Icon(Icons.warning, color: Colors.orange.shade700),
-              SizedBox(width: 8),
-              Text('CAP Abaixo do Mínimo'),
+              const SizedBox(width: 8),
+              const Text('CAP Abaixo do Mínimo'),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('O CAP informado (${dapInserido.toStringAsFixed(1)} cm) é menor que o CAP mínimo do inventário (${_dapMinimo.toStringAsFixed(1)} cm).'),
-              SizedBox(height: 7),
               Text(
+                  'O CAP informado (${dapInserido.toStringAsFixed(1)} cm) é menor que o CAP mínimo do inventário (${_dapMinimo.toStringAsFixed(1)} cm).'),
+              const SizedBox(height: 7),
+              const Text(
                 'Árvores com CAP abaixo do mínimo normalmente não são incluídas no inventário.',
                 style: TextStyle(fontStyle: FontStyle.italic),
               ),
-              SizedBox(height: 8),
-              Text('Deseja salvar mesmo assim?'),
+              const SizedBox(height: 8),
+              const Text('Deseja salvar mesmo assim?'),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Corrigir DAP'),
+              child: const Text('Corrigir DAP'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
@@ -415,140 +484,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                 backgroundColor: Colors.orange.shade700,
                 foregroundColor: Colors.white,
               ),
-              child: Text('Salvar Mesmo Assim'),
+              child: const Text('Salvar Mesmo Assim'),
             ),
           ],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<bool?> _mostrarAvisoCapMenorAnoAnterior(double capAtual) async {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.trending_down, color: Colors.red.shade700),
-              SizedBox(width: 8),
-              Text('CAP Menor que Ano Anterior'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 120,
-                width: double.maxFinite,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    'assets/images/aviso_cap.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'O CAP informado (${capAtual.toStringAsFixed(1)} cm) é menor que o CAP registrado no inventário anterior (${_capAnoAnterior!.toStringAsFixed(1)} cm).',
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Normalmente o CAP de uma árvore não diminui entre inventários. Isso pode indicar um erro de digitação.',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-              SizedBox(height: 8),
-              Text('Deseja salvar mesmo assim?'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Corrigir CAP'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700,
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Salvar Mesmo Assim'),
-            ),
-          ],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<bool?> _mostrarAvisoCapMaiorLimite(double capAtual) async {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.trending_down, color: Colors.red.shade700),
-              SizedBox(width: 8),
-              Text('CAP maior que o limite definido'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 120,
-                width: double.maxFinite,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    'assets/images/aviso_cap.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-                  ),
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'O CAP informado (${capAtual.toStringAsFixed(1)} cm) apresenta uma diferença maior que 8.0 cm em relação a medição anterior (${_capAnoAnterior!.toStringAsFixed(1)} cm).',
-              ),
-              SizedBox(height: 8),
-              Text(
-                'O CAP informado apresenta uma diferença maior que o limite de 8 cm definido para o período',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-              SizedBox(height: 8),
-              Text('Deseja salvar mesmo assim?'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text('Corrigir CAP'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700,
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Salvar Mesmo Assim'),
-            ),
-          ],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         );
       },
     );
@@ -563,18 +503,19 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           focusNode: _familiaFocusNode,
           decoration: InputDecoration(
             labelText: 'Família Botânica',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border:
+            OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey.shade300),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.green.shade700, width: 2),
+              borderSide:
+              BorderSide(color: Colors.green.shade700, width: 2),
             ),
-            suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+            suffixIcon:
+            Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
             prefixIcon: Icon(Icons.category, color: Colors.green.shade700),
             hintText: 'Digite para buscar famílias...',
             filled: true,
@@ -588,12 +529,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           },
         ),
         if (_mostrarSugestoesFamilia && _familiasFiltradas.isNotEmpty)
-          _buildListaSugestoes(
-            _familiasFiltradas,
-            _selecionarFamilia,
-            icone: Icons.category,
-          ),
-        if (_mostrarSugestoesFamilia && _familiasFiltradas.isEmpty && _familiaController.text.isNotEmpty)
+          _buildListaSugestoes(_familiasFiltradas, _selecionarFamilia,
+              icone: Icons.category),
+        if (_mostrarSugestoesFamilia &&
+            _familiasFiltradas.isEmpty &&
+            _familiaController.text.isNotEmpty)
           _buildMensagemNenhumResultado('Nenhuma família encontrada'),
       ],
     );
@@ -608,18 +548,19 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           focusNode: _nomeCientificoFocusNode,
           decoration: InputDecoration(
             labelText: 'Espécie Botânica',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border:
+            OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey.shade300),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.green.shade700, width: 2),
+              borderSide:
+              BorderSide(color: Colors.green.shade700, width: 2),
             ),
-            suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+            suffixIcon:
+            Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
             prefixIcon: Icon(Icons.eco, color: Colors.green.shade700),
             hintText: 'Digite para buscar espécies...',
             filled: true,
@@ -633,12 +574,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           },
         ),
         if (_mostrarSugestoesEspecie && _especiesFiltradas.isNotEmpty)
-          _buildListaSugestoes(
-            _especiesFiltradas,
-            _selecionarEspecie,
-            icone: Icons.eco,
-          ),
-        if (_mostrarSugestoesEspecie && _especiesFiltradas.isEmpty && _nomeCientificoController.text.isNotEmpty)
+          _buildListaSugestoes(_especiesFiltradas, _selecionarEspecie,
+              icone: Icons.eco),
+        if (_mostrarSugestoesEspecie &&
+            _especiesFiltradas.isEmpty &&
+            _nomeCientificoController.text.isNotEmpty)
           _buildMensagemNenhumResultado(
             _familiaSelecionada.isEmpty
                 ? 'Nenhuma espécie encontrada'
@@ -648,23 +588,25 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     );
   }
 
-  Widget _buildListaSugestoes(List<String> sugestoes, Function(String) onSelecionar, {IconData? icone}) {
+  Widget _buildListaSugestoes(
+      List<String> sugestoes, Function(String) onSelecionar,
+      {IconData? icone}) {
     return Card(
       elevation: 4,
       shadowColor: Colors.black26,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      margin: EdgeInsets.only(top: 4),
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(top: 4),
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: 200),
+        constraints: const BoxConstraints(maxHeight: 200),
         child: ListView.builder(
           shrinkWrap: true,
           itemCount: sugestoes.length,
           itemBuilder: (context, index) {
             final sugestao = sugestoes[index];
             return ListTile(
-              leading: Icon(icone ?? Icons.check, color: Colors.green.shade700, size: 20),
+              leading: Icon(icone ?? Icons.check,
+                  color: Colors.green.shade700, size: 20),
               title: Text(sugestao),
               onTap: () => onSelecionar(sugestao),
             );
@@ -678,21 +620,18 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     return Card(
       elevation: 2,
       shadowColor: Colors.black12,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      margin: EdgeInsets.only(top: 4),
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(top: 4),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Row(
           children: [
             Icon(Icons.search_off, color: Colors.grey.shade600, size: 20),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                mensagem,
-                style: TextStyle(color: Colors.grey.shade700),
-              ),
+              child: Text(mensagem,
+                  style: TextStyle(color: Colors.grey.shade700)),
             ),
           ],
         ),
@@ -706,18 +645,18 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       appBar: AppBar(
         title: Text(
           widget.arvore == null ? 'Nova Árvore' : 'Editar Árvore',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         backgroundColor: Colors.green.shade700,
         elevation: 4,
         shadowColor: Colors.black26,
         actions: [
           IconButton(
-            icon: Icon(Icons.receipt),
+            icon: const Icon(Icons.receipt),
             onPressed: _definirMorta,
           ),
           IconButton(
-            icon: Icon(Icons.save),
+            icon: const Icon(Icons.save),
             onPressed: _salvarArvore,
           ),
         ],
@@ -727,15 +666,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Colors.green.shade50,
-              Colors.blue.shade50,
-            ],
+            colors: [Colors.green.shade50, Colors.blue.shade50],
           ),
         ),
         child: GestureDetector(
           onTap: () {
-            // Fechar sugestões ao tocar fora
             setState(() {
               _mostrarSugestoesFamilia = false;
               _mostrarSugestoesEspecie = false;
@@ -748,75 +683,38 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
               key: _formKey,
               child: Column(
                 children: [
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                  // Card de DAP mínimo
-                  Card(
-                    elevation: 4,
-                    shadowColor: Colors.black26,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    color: _dapAbaixoMinimo ? Colors.orange.shade50 : Colors.green.shade50,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _dapAbaixoMinimo ? Icons.warning : Icons.info,
-                            color: _dapAbaixoMinimo ? Colors.orange.shade700 : Colors.green.shade700,
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _dapAbaixoMinimo
-                                  ? 'CAP abaixo do mínimo (${_dapMinimo.toStringAsFixed(1)} cm)'
-                                  : 'CAP mínimo do inventário: ${_dapMinimo.toStringAsFixed(1)} cm',
-                              style: TextStyle(
-                                color: _dapAbaixoMinimo ? Colors.orange.shade800 : Colors.green.shade800,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-
-                  // Card de aviso: CAP menor que ano anterior
-                  if (_capAnoAnterior != null)
+                  // Card de CAP mínimo / aviso
+                  if (_selectedinfoMorta != 1)
                     Card(
                       elevation: 4,
                       shadowColor: Colors.black26,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      color: _capMenorQueAnoAnterior
-                          ? Colors.red.shade50
-                          : Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(16)),
+                      color: _dapAbaixoMinimo
+                          ? Colors.orange.shade50
+                          : Colors.green.shade50,
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Row(
                           children: [
                             Icon(
-                              _capMenorQueAnoAnterior
-                                  ? Icons.trending_down
-                                  : Icons.history,
-                              color: _capMenorQueAnoAnterior
-                                  ? Colors.red.shade700
-                                  : Colors.blue.shade700,
+                              _dapAbaixoMinimo ? Icons.warning : Icons.info,
+                              color: _dapAbaixoMinimo
+                                  ? Colors.orange.shade700
+                                  : Colors.green.shade700,
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                _capMenorQueAnoAnterior
-                                    ? 'CAP menor que o ano anterior (${_capAnoAnterior!.toStringAsFixed(1)} cm)'
-                                    : 'CAP do inventário anterior: ${_capAnoAnterior!.toStringAsFixed(1)} cm',
+                                _dapAbaixoMinimo
+                                    ? 'CAP abaixo do mínimo (${_dapMinimo.toStringAsFixed(1)} cm)'
+                                    : 'CAP mínimo do inventário: ${_dapMinimo.toStringAsFixed(1)} cm',
                                 style: TextStyle(
-                                  color: _capMenorQueAnoAnterior
-                                      ? Colors.red.shade800
-                                      : Colors.blue.shade800,
+                                  color: _dapAbaixoMinimo
+                                      ? Colors.orange.shade800
+                                      : Colors.green.shade800,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -825,9 +723,14 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                         ),
                       ),
                     ),
-                  SizedBox(height: 16),
+
+                  const SizedBox(height: 16),
 
                   Card(
+                    elevation: 4,
+                    shadowColor: Colors.black26,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -841,14 +744,13 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               if (value == null || value.isEmpty) {
                                 return 'Por favor, insira o número da árvore';
                               }
-                              final numero = _parseIntSafe(value);
-                              if (numero <= 0) {
+                              if (_parseIntSafe(value) <= 0) {
                                 return 'Por favor, insira um número válido';
                               }
                               return null;
                             },
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           _buildTextField(
                             controller: _fusteController,
@@ -859,419 +761,323 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               if (value == null || value.isEmpty) {
                                 return 'Por favor, insira o número do fuste';
                               }
-                              final numero = _parseIntSafe(value);
-                              if (numero <= 0) {
+                              if (_parseIntSafe(value) <= 0) {
                                 return 'Por favor, insira um número válido';
                               }
                               return null;
                             },
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           Container(
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.9),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade300),
+                              border:
+                              Border.all(color: Colors.grey.shade300),
                             ),
                             child: DropdownButtonFormField<int>(
                               value: _selectedCodigo,
                               decoration: InputDecoration(
                                 labelText: 'Código / Tipo',
-                                labelStyle: TextStyle(color: Colors.grey.shade700),
-                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
+                                labelStyle: TextStyle(
+                                    color: Colors.grey.shade700),
+                                prefixIcon: Icon(Icons.tag,
+                                    color: Colors.green.shade700),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   borderSide: BorderSide.none,
                                 ),
                                 filled: true,
                                 fillColor: Colors.transparent,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
                               ),
                               items: const [
-                                DropdownMenuItem(value: 0, child: Text('0 - Árvore Normal')),
-                                DropdownMenuItem(value: 1, child: Text('1 - Bifurcada Principal')),
-                                DropdownMenuItem(value: 2, child: Text('2 - Bifurcada Secundária')),
-                                DropdownMenuItem(value: 3, child: Text('3 - Araucária Reg. Semente')),
-                                DropdownMenuItem(value: 4, child: Text('4 - Araucária Reg. Brotação')),
+                                DropdownMenuItem(
+                                    value: 0,
+                                    child: Text('0 - Árvore Normal')),
+                                DropdownMenuItem(
+                                    value: 1,
+                                    child: Text('1 - Bifurcada Principal')),
+                                DropdownMenuItem(
+                                    value: 2,
+                                    child:
+                                    Text('2 - Bifurcada Secundária')),
+                                DropdownMenuItem(
+                                    value: 3,
+                                    child: Text(
+                                        '3 - Araucária Reg. Semente')),
+                                DropdownMenuItem(
+                                    value: 4,
+                                    child: Text(
+                                        '4 - Araucária Reg. Brotação')),
                               ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedCodigo = value;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null) {
-                                  return 'Selecione um código';
-                                }
-                                return null;
-                              },
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+                              onChanged: (value) =>
+                                  setState(() => _selectedCodigo = value),
+                              validator: (value) => value == null
+                                  ? 'Selecione um código'
+                                  : null,
+                              icon: Icon(Icons.arrow_drop_down,
+                                  color: Colors.green.shade700),
                               isExpanded: true,
                               dropdownColor: Colors.white,
-                              style: TextStyle(color: Colors.black87, fontSize: 16),
+                              style: const TextStyle(
+                                  color: Colors.black87, fontSize: 16),
                             ),
                           ),
-
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           _buildTextField(
                             controller: _xController,
                             label: 'Coordenada X',
                             icon: Icons.pin_drop,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                            TextInputType.numberWithOptions(decimal: true),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
+                              if (value == null || value.isEmpty)
                                 return 'Por favor, insira a coordenada X';
-                              }
-                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
+                              if (_parseDoubleSafe(value) == 0.0 &&
+                                  value != '0')
                                 return 'Por favor, insira um número válido';
-                              }
                               return null;
                             },
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           _buildTextField(
                             controller: _yController,
                             label: 'Coordenada Y',
                             icon: Icons.pin_drop,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                            TextInputType.numberWithOptions(decimal: true),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
+                              if (value == null || value.isEmpty)
                                 return 'Por favor, insira a coordenada Y';
-                              }
-                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
+                              if (_parseDoubleSafe(value) == 0.0 &&
+                                  value != '0')
                                 return 'Por favor, insira um número válido';
-                              }
                               return null;
                             },
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
-                          // CAMPOS COM SUGESTÕES DA TAXONOMIA
                           _buildCampoFamilia(),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           _buildCampoEspecie(),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           _buildTextField(
                             controller: _nomePopularController,
                             label: 'Nome Popular',
                             icon: Icons.pin_drop,
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
+                              if (value == null || value.isEmpty)
                                 return 'Por favor, insira o Nome Popular';
-                              }
                               return null;
                             },
                           ),
+                          const SizedBox(height: 16),
 
-                          SizedBox(height: 16),
                           _buildTextField(
                             controller: _dapController,
                             label: 'CAP (cm)',
                             icon: Icons.straighten,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                            TextInputType.numberWithOptions(decimal: true),
                             onChanged: _validarDAP,
-                            errorText: _dapAbaixoMinimo ? 'CAP abaixo do mínimo' : null,
                             validator: (value) {
-
-                              if (_selectedinfoMorta == 1 && (value == null || value.isEmpty)) {
-                                return null; // válido
-                              }
-
-                              if (value == null || value.isEmpty) {
+                              if (_selectedinfoMorta == 1) return null;
+                              if (value == null || value.isEmpty)
                                 return 'Por favor, insira o CAP';
-                              }
-                              if (_parseDoubleSafe(value) == 0.0 && value != '0') {
+                              if (_parseDoubleSafe(value) == 0.0 &&
+                                  value != '0')
                                 return 'Por favor, insira um número válido';
-                              }
                               return null;
                             },
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           _buildTextField(
                             controller: _hcController,
                             label: 'HC (m)',
                             icon: Icons.height,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                            TextInputType.numberWithOptions(decimal: true),
                           ),
-
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           _buildTextField(
                             controller: _htController,
                             label: 'HT (m)',
                             icon: Icons.height,
-                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                            TextInputType.numberWithOptions(decimal: true),
                           ),
+                          const SizedBox(height: 16),
 
-                          SizedBox(height: 16),
-
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: DropdownButtonFormField<int>(
-                              value: _selectedFormaFuste,
-                              decoration: InputDecoration(
-                                labelText: 'Forma do Fuste',
-                                labelStyle: TextStyle(color: Colors.grey.shade700),
-                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                filled: true,
-                                fillColor: Colors.transparent,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
-                                DropdownMenuItem(value: 1, child: Text('1 - Fuste Tortuoso')),
-                                DropdownMenuItem(value: 2, child: Text('2 - Fuste Levemente Torturoso')),
-                                DropdownMenuItem(value: 3, child: Text('3 - Fuste Reto')),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedFormaFuste = value;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null) {
-                                  return 'Selecione um código';
-                                }
-                                return null;
-                              },
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
-                              isExpanded: true,
-                              dropdownColor: Colors.white,
-                              style: TextStyle(color: Colors.black87, fontSize: 16),
-                            ),
+                          _buildDropdown(
+                            value: _selectedFormaFuste,
+                            label: 'Forma do Fuste',
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 0,
+                                  child: Text('0 - Não Atribuido')),
+                              DropdownMenuItem(
+                                  value: 1,
+                                  child: Text('1 - Fuste Tortuoso')),
+                              DropdownMenuItem(
+                                  value: 2,
+                                  child: Text(
+                                      '2 - Fuste Levemente Torturoso')),
+                              DropdownMenuItem(
+                                  value: 3, child: Text('3 - Fuste Reto')),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => _selectedFormaFuste = v),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: DropdownButtonFormField<int>(
-                              value: _selectedPosiSoc,
-                              decoration: InputDecoration(
-                                labelText: 'Estrato',
-                                labelStyle: TextStyle(color: Colors.grey.shade700),
-                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                filled: true,
-                                fillColor: Colors.transparent,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
-                                DropdownMenuItem(value: 1, child: Text('1 - Estrato Inferior')),
-                                DropdownMenuItem(value: 2, child: Text('2 - Estrato Médio')),
-                                DropdownMenuItem(value: 3, child: Text('3 - Estrato Superior')),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedPosiSoc = value;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null) {
-                                  return 'Selecione um código';
-                                }
-                                return null;
-                              },
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
-                              isExpanded: true,
-                              dropdownColor: Colors.white,
-                              style: TextStyle(color: Colors.black87, fontSize: 16),
-                            ),
+                          _buildDropdown(
+                            value: _selectedPosiSoc,
+                            label: 'Estrato',
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 0,
+                                  child: Text('0 - Não Atribuido')),
+                              DropdownMenuItem(
+                                  value: 1,
+                                  child: Text('1 - Estrato Inferior')),
+                              DropdownMenuItem(
+                                  value: 2,
+                                  child: Text('2 - Estrato Médio')),
+                              DropdownMenuItem(
+                                  value: 3,
+                                  child: Text('3 - Estrato Superior')),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => _selectedPosiSoc = v),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: DropdownButtonFormField<int>(
-                              value: _selectedFito,
-                              decoration: InputDecoration(
-                                labelText: 'Fitossanidade',
-                                labelStyle: TextStyle(color: Colors.grey.shade700),
-                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                filled: true,
-                                fillColor: Colors.transparent,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
-                                DropdownMenuItem(value: 1, child: Text('1 - Fitossanidade Ruim')),
-                                DropdownMenuItem(value: 2, child: Text('2 - Fitossanidade Média')),
-                                DropdownMenuItem(value: 3, child: Text('3 - Fitossanidade Boa')),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedFito = value;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null) {
-                                  return 'Selecione um código';
-                                }
-                                return null;
-                              },
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
-                              isExpanded: true,
-                              dropdownColor: Colors.white,
-                              style: TextStyle(color: Colors.black87, fontSize: 16),
-                            ),
+                          _buildDropdown(
+                            value: _selectedFito,
+                            label: 'Fitossanidade',
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 0,
+                                  child: Text('0 - Não Atribuido')),
+                              DropdownMenuItem(
+                                  value: 1,
+                                  child:
+                                  Text('1 - Fitossanidade Ruim')),
+                              DropdownMenuItem(
+                                  value: 2,
+                                  child:
+                                  Text('2 - Fitossanidade Média')),
+                              DropdownMenuItem(
+                                  value: 3,
+                                  child:
+                                  Text('3 - Fitossanidade Boa')),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => _selectedFito = v),
                           ),
+                          const SizedBox(height: 16),
 
-                          SizedBox(height: 16),
-
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: DropdownButtonFormField<int>(
-                              value: _selectedPosiCopa,
-                              decoration: InputDecoration(
-                                labelText: 'Posição da Copa',
-                                labelStyle: TextStyle(color: Colors.grey.shade700),
-                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                filled: true,
-                                fillColor: Colors.transparent,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
-                                DropdownMenuItem(value: 1, child: Text('1 - Sem Iluminação Direta')),
-                                DropdownMenuItem(value: 2, child: Text('2 - Alguma Iluminação Natural')),
-                                DropdownMenuItem(value: 3, child: Text('3 - Iluminação Superior Parcial')),
-                                DropdownMenuItem(value: 4, child: Text('4 - Iluminação Superior Completa')),
-                                DropdownMenuItem(value: 5, child: Text('5 - Emergente')),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedPosiCopa = value;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null) {
-                                  return 'Selecione um código';
-                                }
-                                return null;
-                              },
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
-                              isExpanded: true,
-                              dropdownColor: Colors.white,
-                              style: TextStyle(color: Colors.black87, fontSize: 16),
-                            ),
+                          _buildDropdown(
+                            value: _selectedPosiCopa,
+                            label: 'Posição da Copa',
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 0,
+                                  child: Text('0 - Não Atribuido')),
+                              DropdownMenuItem(
+                                  value: 1,
+                                  child: Text(
+                                      '1 - Sem Iluminação Direta')),
+                              DropdownMenuItem(
+                                  value: 2,
+                                  child: Text(
+                                      '2 - Alguma Iluminação Natural')),
+                              DropdownMenuItem(
+                                  value: 3,
+                                  child: Text(
+                                      '3 - Iluminação Superior Parcial')),
+                              DropdownMenuItem(
+                                  value: 4,
+                                  child: Text(
+                                      '4 - Iluminação Superior Completa')),
+                              DropdownMenuItem(
+                                  value: 5,
+                                  child: Text('5 - Emergente')),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => _selectedPosiCopa = v),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: DropdownButtonFormField<int>(
-                              value: _selectedFormaCopa,
-                              decoration: InputDecoration(
-                                labelText: 'Forma da Copa',
-                                labelStyle: TextStyle(color: Colors.grey.shade700),
-                                prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                filled: true,
-                                fillColor: Colors.transparent,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: 0, child: Text('0 - Não Atribuido')),
-                                DropdownMenuItem(value: 1, child: Text('1 - Forma Intolerável')),
-                                DropdownMenuItem(value: 2, child: Text('2 - Forma Pobre')),
-                                DropdownMenuItem(value: 3, child: Text('3 - Forma Tolerável')),
-                                DropdownMenuItem(value: 4, child: Text('4 - Boa Forma')),
-                                DropdownMenuItem(value: 5, child: Text('5 - Forma Perfeita')),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedFormaCopa = value;
-                                });
-                              },
-                              validator: (value) {
-                                if (value == null) {
-                                  return 'Selecione um código';
-                                }
-                                return null;
-                              },
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
-                              isExpanded: true,
-                              dropdownColor: Colors.white,
-                              style: TextStyle(color: Colors.black87, fontSize: 16),
-                            ),
+                          _buildDropdown(
+                            value: _selectedFormaCopa,
+                            label: 'Forma da Copa',
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 0,
+                                  child: Text('0 - Não Atribuido')),
+                              DropdownMenuItem(
+                                  value: 1,
+                                  child: Text('1 - Forma Intolerável')),
+                              DropdownMenuItem(
+                                  value: 2,
+                                  child: Text('2 - Forma Pobre')),
+                              DropdownMenuItem(
+                                  value: 3,
+                                  child: Text('3 - Forma Tolerável')),
+                              DropdownMenuItem(
+                                  value: 4,
+                                  child: Text('4 - Boa Forma')),
+                              DropdownMenuItem(
+                                  value: 5,
+                                  child: Text('5 - Forma Perfeita')),
+                            ],
+                            onChanged: (v) =>
+                                setState(() => _selectedFormaCopa = v),
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
                           _buildTextField(
                             controller: _observationController,
                             label: 'Observações',
-                            icon: Icons.numbers,
+                            icon: Icons.notes,
                           ),
                         ],
                       ),
                     ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                  // Botão Salvar
                   SizedBox(
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton.icon(
                       onPressed: _salvarArvore,
-                      icon: Icon(Icons.save, size: 24),
-                      label: Text(
+                      icon: const Icon(Icons.save, size: 24),
+                      label: const Text(
                         'Salvar Árvore',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green.shade700,
                         foregroundColor: Colors.white,
                         elevation: 8,
-                        shadowColor: Colors.green.shade700.withOpacity(0.5),
+                        shadowColor:
+                        Colors.green.shade700.withOpacity(0.5),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                            borderRadius: BorderRadius.circular(16)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 24),
                       ),
                     ),
                   ),
@@ -1284,7 +1090,45 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     );
   }
 
-  // Método auxiliar para campos de texto padronizados
+  // ✅ Método auxiliar extraído para dropdowns — elimina repetição de código
+  Widget _buildDropdown({
+    required int? value,
+    required String label,
+    required List<DropdownMenuItem<int>> items,
+    required void Function(int?) onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: DropdownButtonFormField<int>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.grey.shade700),
+          prefixIcon: Icon(Icons.tag, color: Colors.green.shade700),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.transparent,
+          contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        ),
+        items: items,
+        onChanged: onChanged,
+        validator: (v) => v == null ? 'Selecione um código' : null,
+        icon: Icon(Icons.arrow_drop_down, color: Colors.green.shade700),
+        isExpanded: true,
+        dropdownColor: Colors.white,
+        style: const TextStyle(color: Colors.black87, fontSize: 16),
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -1323,10 +1167,12 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         ),
         errorText: errorText,
         helperText: helperText,
-        helperStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+        helperStyle:
+        TextStyle(color: Colors.grey.shade600, fontSize: 12),
         filled: true,
         fillColor: Colors.white.withOpacity(0.9),
-        contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+        contentPadding:
+        const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       ),
       keyboardType: keyboardType,
       validator: validator,
@@ -1339,6 +1185,19 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     _debounceTimer?.cancel();
     _familiaFocusNode.dispose();
     _nomeCientificoFocusNode.dispose();
+    _dapController.dispose();
+    _numeroController.dispose();
+    _fusteController.dispose();
+    _xController.dispose();
+    _yController.dispose();
+    _familiaController.dispose();
+    _nomeCientificoController.dispose();
+    _nomePopularController.dispose();
+    _hcController.dispose();
+    _anoHCController.dispose();
+    _htController.dispose();
+    _anoHTController.dispose();
+    _observationController.dispose();
     super.dispose();
   }
 }

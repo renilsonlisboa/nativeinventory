@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import '../models/parcela.dart';
 import '../database/database_helper.dart';
-import 'editar_parcela_screen.dart';
 import 'tabela_arvores_screen.dart';
+import 'adicionar_parcelas_screen.dart'; // ← NOVO IMPORT
 
 class ListaParcelasScreen extends StatefulWidget {
   final int inventarioId;
+  final int? filtroBloco;
 
-  const ListaParcelasScreen({Key? key, required this.inventarioId}) : super(key: key);
+  const ListaParcelasScreen({
+    Key? key,
+    required this.inventarioId,
+    this.filtroBloco,
+  }) : super(key: key);
 
   @override
   _ListaParcelasScreenState createState() => _ListaParcelasScreenState();
@@ -17,7 +22,6 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
   List<Parcela> _todasParcelas = [];
   List<Parcela> _parcelasFiltradas = [];
   bool _carregando = true;
-  bool _mostrarFiltros = false; // controle para mostrar/ocultar filtros
 
   // Filtros
   int? _filtroBloco;
@@ -27,6 +31,7 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
   @override
   void initState() {
     super.initState();
+    _filtroBloco = widget.filtroBloco;
     _carregarParcelas();
   }
 
@@ -46,9 +51,9 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
 
       setState(() {
         _todasParcelas = parcelas;
-        _parcelasFiltradas = parcelas;
         _carregando = false;
       });
+      _aplicarFiltros();
     } catch (e) {
       setState(() {
         _carregando = false;
@@ -89,6 +94,22 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
     });
   }
 
+
+  Future<void> _toggleConcluida(Parcela parcela) async {
+    try {
+      final atualizada = parcela.copyWith(concluida: !parcela.concluida);
+      await DatabaseHelper().updateParcela(atualizada);
+      _carregarParcelas();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao atualizar parcela'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
+  }
+
   void _refreshList() {
     _carregarParcelas();
   }
@@ -109,164 +130,23 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
     );
   }
 
-  // Constrói o cabeçalho com botão de filtro e contador
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Parcelas',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.green.shade800,
-              ),
-            ),
-          ),
-          // Botão para alternar filtros
-          IconButton(
-            icon: Icon(
-              _mostrarFiltros ? Icons.filter_alt_off : Icons.filter_alt,
-              color: Colors.green.shade700,
-            ),
-            onPressed: () {
-              setState(() {
-                _mostrarFiltros = !_mostrarFiltros;
-              });
-            },
-            tooltip: _mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros',
-          ),
-          // Chip com contagem
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Text(
-              '${_parcelasFiltradas.length} de ${_todasParcelas.length}',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.blue.shade800,
-              ),
-            ),
-          ),
-        ],
+  // ─── NOVO: abre tela de adição de parcelas ────────────────────────────────
+  Future<void> _abrirAdicionarParcelas() async {
+    final houveMudanca = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) =>
+            AdicionarParcelasScreen(inventarioId: widget.inventarioId),
       ),
     );
+
+    if (houveMudanca == true) {
+      // Recarrega a lista e reaplica os filtros
+      await _carregarParcelas();
+      _aplicarFiltros();
+    }
   }
 
-  Widget _buildFiltros() {
-    if (_todasParcelas.isEmpty) return SizedBox.shrink();
-
-    final blocosUnicos = _obterValoresUnicos(_todasParcelas, (p) => p.bloco);
-    final parcelasUnicas = _obterValoresUnicos(_todasParcelas, (p) => p.parcela);
-    final faixasUnicas = _obterValoresUnicos(_todasParcelas, (p) => p.faixa);
-
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      height: _mostrarFiltros ? null : 0,
-      child: _mostrarFiltros
-          ? Card(
-        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        elevation: 4,
-        shadowColor: Colors.black26,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.filter_list, color: Colors.green.shade700),
-                  SizedBox(width: 8),
-                  Text(
-                    'Filtros',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green.shade800,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth > 600) {
-                    return Row(
-                      children: [
-                        Expanded(child: _buildDropdownBloco(blocosUnicos)),
-                        SizedBox(width: 12),
-                        Expanded(child: _buildDropdownParcela(parcelasUnicas)),
-                        SizedBox(width: 12),
-                        Expanded(child: _buildDropdownFaixa(faixasUnicas)),
-                      ],
-                    );
-                  } else {
-                    return Column(
-                      children: [
-                        _buildDropdownBloco(blocosUnicos),
-                        SizedBox(height: 12),
-                        _buildDropdownParcela(parcelasUnicas),
-                        SizedBox(height: 12),
-                        _buildDropdownFaixa(faixasUnicas),
-                      ],
-                    );
-                  }
-                },
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: Icon(Icons.clear),
-                      label: Text('Limpar'),
-                      onPressed: _limparFiltros,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        side: BorderSide(color: Colors.grey.shade400),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      icon: Icon(Icons.forest),
-                      label: Text('Ver Todas'),
-                      onPressed: _limparFiltros,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      )
-          : SizedBox.shrink(),
-    );
-  }
-
+  // ─── Header ───────────────────────────────────────────────────────────────
   Widget _buildDropdownBloco(List<int> blocosUnicos) {
     return DropdownButtonFormField<int>(
       value: _filtroBloco,
@@ -274,9 +154,7 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
         labelText: 'Bloco',
         labelStyle: TextStyle(color: Colors.grey.shade700),
         prefixIcon: Icon(Icons.grid_view, color: Colors.green.shade700, size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.green.shade700, width: 2),
@@ -285,14 +163,9 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
         isDense: true,
       ),
       items: [
-        DropdownMenuItem(
-          value: null,
-          child: Text('Todos'),
-        ),
-        ...blocosUnicos.map((bloco) => DropdownMenuItem(
-          value: bloco,
-          child: Text('Bloco $bloco'),
-        )),
+        DropdownMenuItem(value: null, child: Text('Todos')),
+        ...blocosUnicos.map((bloco) =>
+            DropdownMenuItem(value: bloco, child: Text('Bloco $bloco'))),
       ],
       onChanged: (value) {
         setState(() => _filtroBloco = value);
@@ -308,9 +181,7 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
         labelText: 'Parcela',
         labelStyle: TextStyle(color: Colors.grey.shade700),
         prefixIcon: Icon(Icons.view_agenda, color: Colors.green.shade700, size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.green.shade700, width: 2),
@@ -320,10 +191,8 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
       ),
       items: [
         DropdownMenuItem(value: null, child: Text('Todas')),
-        ...parcelasUnicas.map((parcela) => DropdownMenuItem(
-          value: parcela,
-          child: Text('Parcela $parcela'),
-        )),
+        ...parcelasUnicas.map((parcela) =>
+            DropdownMenuItem(value: parcela, child: Text('Parcela $parcela'))),
       ],
       onChanged: (value) {
         setState(() => _filtroParcela = value);
@@ -339,9 +208,7 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
         labelText: 'Faixa',
         labelStyle: TextStyle(color: Colors.grey.shade700),
         prefixIcon: Icon(Icons.view_stream, color: Colors.green.shade700, size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.green.shade700, width: 2),
@@ -351,10 +218,8 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
       ),
       items: [
         DropdownMenuItem(value: null, child: Text('Todas')),
-        ...faixasUnicas.map((faixa) => DropdownMenuItem(
-          value: faixa,
-          child: Text('Faixa $faixa'),
-        )),
+        ...faixasUnicas.map((faixa) =>
+            DropdownMenuItem(value: faixa, child: Text('Faixa $faixa'))),
       ],
       onChanged: (value) {
         setState(() => _filtroFaixa = value);
@@ -375,21 +240,28 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
         elevation: 4,
         shadowColor: Colors.black26,
       ),
+      // ─── NOVO: botão flutuante ──────────────────────────────────────────────
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _abrirAdicionarParcelas,
+        backgroundColor: Colors.green.shade700,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text(
+          'Adicionar parcelas',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        tooltip: 'Adicionar novas parcelas ao inventário',
+      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Colors.green.shade50,
-              Colors.blue.shade50,
-            ],
+            colors: [Colors.green.shade50, Colors.blue.shade50],
           ),
         ),
         child: Column(
           children: [
-            _buildHeader(),
-            _buildFiltros(),
             Expanded(
               child: _carregando
                   ? Center(
@@ -411,20 +283,13 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.forest,
-                          size: 64,
-                          color: Colors.green.shade200,
-                        ),
+                        Icon(Icons.forest, size: 64, color: Colors.green.shade200),
                         SizedBox(height: 16),
                         Text(
                           _todasParcelas.isEmpty
                               ? 'Nenhuma parcela encontrada.'
                               : 'Nenhuma parcela corresponde aos filtros.',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade700,
-                          ),
+                          style: TextStyle(fontSize: 18, color: Colors.grey.shade700),
                         ),
                         if (_todasParcelas.isNotEmpty) ...[
                           SizedBox(height: 16),
@@ -446,7 +311,8 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
                 ),
               )
                   : ListView.builder(
-                padding: EdgeInsets.all(16),
+                // Padding extra no final para o FAB não cobrir o último item
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
                 itemCount: _parcelasFiltradas.length,
                 itemBuilder: (context, index) {
                   final parcela = _parcelasFiltradas[index];
@@ -465,9 +331,7 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
       margin: EdgeInsets.symmetric(vertical: 6, horizontal: 0),
       elevation: 4,
       shadowColor: Colors.black26,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: parcela.concluida ? Colors.green.shade50 : Colors.white,
       child: InkWell(
         onTap: () => _abrirTabelaArvores(parcela),
@@ -476,7 +340,6 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
           padding: const EdgeInsets.all(12.0),
           child: Row(
             children: [
-              // Avatar com status
               Container(
                 width: 50,
                 height: 50,
@@ -491,7 +354,6 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
                 ),
               ),
               SizedBox(width: 16),
-              // Conteúdo principal
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,10 +381,7 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
                             SizedBox(width: 4),
                             Text(
                               '$count árvore(s)',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade700,
-                              ),
+                              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
                             ),
                           ],
                         );
@@ -543,28 +402,16 @@ class _ListaParcelasScreenState extends State<ListaParcelasScreen> {
                   ],
                 ),
               ),
-              // Ícones de ação
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: Icon(Icons.table_chart, color: Colors.blue.shade700),
-                    onPressed: () => _abrirTabelaArvores(parcela),
-                    tooltip: 'Ver árvores',
-                    splashRadius: 24,
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.edit, color: Colors.orange.shade700),
-                    onPressed: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditarParcelaScreen(parcela: parcela),
-                        ),
-                      );
-                      _refreshList();
-                    },
-                    tooltip: 'Editar parcela',
+                    icon: Icon(
+                      parcela.concluida ? Icons.check_circle : Icons.check_circle_outline,
+                      color: parcela.concluida ? Colors.green.shade700 : Colors.grey.shade500,
+                    ),
+                    onPressed: () => _toggleConcluida(parcela),
+                    tooltip: parcela.concluida ? 'Marcar como pendente' : 'Concluir parcela',
                     splashRadius: 24,
                   ),
                 ],

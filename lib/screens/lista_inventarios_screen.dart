@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/inventario.dart';
 import '../database/database_helper.dart';
-import 'lista_parcelas_screen.dart';
+import 'lista_blocos_screen.dart';
 import 'exportar_screen.dart';
 import 'importar_screen.dart';
 
@@ -209,8 +209,8 @@ class _ListaInventariosScreenState extends State<ListaInventariosScreen> {
                     builder: (context, progressSnapshot) {
                       final concluidas = progressSnapshot.data ?? 0;
                       final totalParcelas = inventario.numeroBlocos *
-                          inventario.numeroFaixas *
-                          inventario.numeroParcelas;
+                          inventario.numeroParcelas *
+                          inventario.numeroFaixas;
                       final double progresso = totalParcelas > 0
                           ? concluidas / totalParcelas
                           : 0.0;
@@ -227,8 +227,9 @@ class _ListaInventariosScreenState extends State<ListaInventariosScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => ListaParcelasScreen(
+                                builder: (context) => ListaBlocosScreen(
                                   inventarioId: inventario.id!,
+                                  nomeInventario: inventario.nome,
                                 ),
                               ),
                             );
@@ -271,7 +272,7 @@ class _ListaInventariosScreenState extends State<ListaInventariosScreen> {
                                       ),
                                       SizedBox(height: 4),
                                       Text(
-                                        '${inventario.numeroBlocos} Blocos · ${inventario.numeroFaixas} Faixas · ${inventario.numeroParcelas} Parcelas',
+                                        '${inventario.numeroBlocos} Blocos · ${inventario.numeroParcelas} Parcelas · ${inventario.numeroFaixas} Faixas',
                                         style: TextStyle(
                                           fontSize: 14,
                                           color: Colors.grey.shade600,
@@ -330,8 +331,9 @@ class _ListaInventariosScreenState extends State<ListaInventariosScreen> {
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => ListaParcelasScreen(
-                                                inventarioId: inventario.id,
+                                              builder: (context) => ListaBlocosScreen(
+                                                inventarioId: inventario.id!,
+                                                nomeInventario: inventario.nome,
                                               ),
                                             ),
                                           );

@@ -1,5 +1,4 @@
 // services/import_service.dart
-import 'dart:convert';
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:sqflite/sqflite.dart';
@@ -30,11 +29,9 @@ class ImportService {
     _adicionarLog('Modo: Detecção automática de colunas CAP');
 
     try {
-      // Ler o conteúdo do arquivo
       final conteudo = await arquivo.readAsString();
       _adicionarLog('Arquivo lido com sucesso (${conteudo.length} caracteres)');
 
-      // Converter CSV para lista
       final linhas = const CsvToListConverter(fieldDelimiter: ';').convert(conteudo);
       _adicionarLog('${linhas.length} linhas detectadas no CSV');
 
@@ -42,20 +39,21 @@ class ImportService {
         throw Exception('Arquivo CSV vazio ou com apenas cabeçalho');
       }
 
-      // Detectar colunas CAP automaticamente
       final cabecalho = linhas[0];
       final colunasCap = _detectarColunasCap(cabecalho);
 
       if (colunasCap.isEmpty) {
-        throw Exception('Nenhuma coluna CAP_XXXX detectada no arquivo. Formato esperado: CAP_2011, CAP_2012, etc.');
+        throw Exception(
+            'Nenhuma coluna CAP_XXXX detectada no arquivo. Formato esperado: CAP_2011, CAP_2012, etc.');
       }
 
-      _adicionarLog('Colunas CAP detectadas: ${colunasCap.entries.map((e) => 'CAP_${e.key} (índice ${e.value})').join(', ')}');
+      _adicionarLog(
+          'Colunas CAP detectadas: ${colunasCap.entries.map((e) => 'CAP_${e.key} (índice ${e.value})').join(', ')}');
 
-      // Processar dados
       final resultado = await _processarLinhas(linhas, config, colunasCap);
 
-      _adicionarLog('Processamento concluído: $totalLinhasProcessadas linhas processadas, $totalLinhasComErro erros');
+      _adicionarLog(
+          'Processamento concluído: $totalLinhasProcessadas linhas processadas, $totalLinhasComErro erros');
 
       return {
         'sucesso': true,
@@ -77,9 +75,8 @@ class ImportService {
     for (int i = 0; i < cabecalho.length; i++) {
       final nomeColuna = cabecalho[i].toString().toUpperCase().trim();
 
-      // Verificar se é uma coluna CAP (CAP_2011, CAP_2012, etc.)
       if (nomeColuna.startsWith('CAP_')) {
-        final anoStr = nomeColuna.substring(4); // Remove "CAP_"
+        final anoStr = nomeColuna.substring(4);
         final ano = int.tryParse(anoStr);
 
         if (ano != null && ano > 1900 && ano < 2100) {
@@ -103,52 +100,151 @@ class ImportService {
     int novasArvores = 0;
     int arvoresAtualizadas = 0;
     int parcelasAfetadas = 0;
-    Set<String> parcelasProcessadas = {};
+    // OPT #2: cache de parcelas em memória — elimina SELECT repetido por linha
+    final Map<String, int> cacheParcelaIds = {};
+    // OPT #4: cache de árvores pré-carregadas — elimina SELECT por linha dentro da transação
+    final Map<String, int> cacheArvoreIds = {};
 
-    // Pular cabeçalho e processar linhas
-    for (int i = 1; i < linhas.length; i++) {
-      try {
-        final linha = linhas[i];
-        totalLinhasProcessadas++;
+    // OPT #4: pré-carregar todas as árvores do inventário de uma só vez
+    final arvoresExistentes = await db.rawQuery('''
+      SELECT a.id, a.parcela_id, a.numero_arvore, a.codigo, a.numero_fuste
+      FROM arvores a
+      INNER JOIN parcelas p ON p.id = a.parcela_id
+      WHERE p.inventario_id = ?
+    ''', [config.inventarioId]);
 
-        // FIX Bug 3: validar com >= 11 para garantir acesso seguro a linha[10]
-        if (linha.length < 11) {
-          _adicionarLog('ERRO Linha ${i + 1}: Número insuficiente de colunas (${linha.length})');
-          totalLinhasComErro++;
-          continue;
-        }
+    for (final a in arvoresExistentes) {
+      final chave =
+          '${a['parcela_id']}-${a['numero_arvore']}-${a['codigo']}-${a['numero_fuste']}';
+      cacheArvoreIds[chave] = a['id'] as int;
+    }
 
-        // Extrair dados da linha com múltiplos CAPs
-        final dados = _extrairDadosLinha(linha, i + 1, colunasCap);
-        if (dados == null) {
-          totalLinhasComErro++;
-          continue;
-        }
+    _adicionarLog('Cache inicial: ${cacheArvoreIds.length} árvores pré-carregadas');
 
-        // Processar no banco de dados
-        final resultado = await _processarArvoreNoBanco(db, dados, config);
+    // Contadores de avisos agrupados (OPT #5)
+    int avisosCapInvalido = 0;
 
-        if (resultado['novo']) {
-          novasArvores++;
-        } else {
-          arvoresAtualizadas++;
-        }
+    // Controle de progresso — imprime a cada 5%
+    final totalLinhas = linhas.length - 1; // desconta cabeçalho
+    int ultimoPercentualImpresso = -1;
 
-        // Registrar parcela processada
-        final chaveParcela = '${dados['bloco']}-${dados['parcela']}-${dados['faixa']}';
-        if (!parcelasProcessadas.contains(chaveParcela)) {
-          parcelasProcessadas.add(chaveParcela);
-          parcelasAfetadas++;
-        }
-
-        if (i % 50 == 0) {
-          _adicionarLog('Processadas $i linhas...');
-        }
-
-      } catch (e) {
-        _adicionarLog('ERRO Linha ${i + 1}: $e');
-        totalLinhasComErro++;
+    void _imprimirProgresso(int linhaAtual) {
+      if (totalLinhas == 0) return;
+      final percentual = ((linhaAtual / totalLinhas) * 100).floor();
+      final marcador = (percentual ~/ 5) * 5; // arredonda para múltiplo de 5
+      if (marcador > ultimoPercentualImpresso && marcador <= 100) {
+        ultimoPercentualImpresso = marcador;
+        final msg = '[PROGRESSO] $marcador% — '
+            '$linhaAtual/$totalLinhas linhas | '
+            'erros: $totalLinhasComErro';
+        print(msg);
+        _adicionarLog(msg);
       }
+    }
+
+    // OPT #1: toda a escrita dentro de uma única transação
+    await db.transaction((txn) async {
+      // OPT #3: batch único para todos os CAPs do processamento
+      final batchCap = txn.batch();
+
+      for (int i = 1; i < linhas.length; i++) {
+        try {
+          final linha = linhas[i];
+          totalLinhasProcessadas++;
+
+          if (linha.length < 11) {
+            final msgErro = 'ERRO Linha ${i + 1}: '
+                'Número insuficiente de colunas (${linha.length})';
+            print(msgErro);
+            _adicionarLog(msgErro);
+            totalLinhasComErro++;
+            _imprimirProgresso(i);
+            continue;
+          }
+
+          final dadosExtracao = _extrairDadosLinha(
+            linha, i + 1, colunasCap,
+            onCapInvalido: () => avisosCapInvalido++, // OPT #5
+          );
+
+          if (dadosExtracao == null) {
+            print('ERRO Linha ${i + 1}: dados inválidos — verifique CAPs e colunas obrigatórias');
+            totalLinhasComErro++;
+            _imprimirProgresso(i);
+            continue;
+          }
+
+          // OPT #2: obter parcela via cache (sem query ao banco se já vista)
+          final parcelaId = await _obterOuCriarParcelaComCache(
+            txn, dadosExtracao, config.inventarioId, cacheParcelaIds,
+          );
+
+          final chaveArvore =
+              '$parcelaId-${dadosExtracao['arvore']}-${dadosExtracao['codigo']}-${dadosExtracao['fuste']}';
+
+          int arvoreId;
+
+          if (cacheArvoreIds.containsKey(chaveArvore)) {
+            // Árvore já existe — apenas atualizar
+            arvoreId = cacheArvoreIds[chaveArvore]!;
+            await txn.update(
+              'arvores',
+              _mapArvore(dadosExtracao),
+              where: 'id = ?',
+              whereArgs: [arvoreId],
+            );
+            arvoresAtualizadas++;
+          } else {
+            // Nova árvore — inserir e registrar no cache
+            arvoreId = await txn.insert(
+              'arvores',
+              {
+                'parcela_id': parcelaId,
+                'numero_arvore': dadosExtracao['arvore'],
+                ..._mapArvore(dadosExtracao),
+              },
+            );
+            cacheArvoreIds[chaveArvore] = arvoreId;
+            novasArvores++;
+          }
+
+          // OPT #3: acumular inserts de CAP no batch (commit único ao final)
+          final capsPorAno = dadosExtracao['caps_por_ano'] as Map<int, double>;
+          for (final entry in capsPorAno.entries) {
+            batchCap.rawInsert('''
+              INSERT OR REPLACE INTO arvores_cap_historico (arvore_id, ano, cap)
+              VALUES (?, ?, ?)
+            ''', [arvoreId, entry.key, entry.value]);
+          }
+
+          // Contagem de parcelas únicas via cache
+          final chaveParcela =
+              '${dadosExtracao['bloco']}-${dadosExtracao['parcela']}-${dadosExtracao['faixa']}';
+          if (!cacheParcelaIds.containsKey(
+              '${config.inventarioId}-$chaveParcela')) {
+            parcelasAfetadas++;
+          }
+
+          _imprimirProgresso(i);
+        } catch (e) {
+          final msgErro = 'ERRO Linha ${i + 1}: $e';
+          print(msgErro);
+          _adicionarLog(msgErro);
+          totalLinhasComErro++;
+          _imprimirProgresso(i);
+        }
+      }
+
+      // OPT #3: commit de todos os CAPs em um único round-trip
+      await batchCap.commit(noResult: true);
+
+      // Garante impressão de 100% ao final
+      _imprimirProgresso(totalLinhas);
+    });
+
+    // OPT #5: log agrupado de avisos de CAP inválido
+    if (avisosCapInvalido > 0) {
+      _adicionarLog('AVISO: $avisosCapInvalido valores de CAP inválidos ignorados');
     }
 
     return {
@@ -161,11 +257,38 @@ class ImportService {
     };
   }
 
+  /// Monta o mapa de colunas comuns a insert e update,
+  /// evitando duplicação entre os dois blocos.
+  Map<String, dynamic> _mapArvore(Map<String, dynamic> d) => {
+    'numero_fuste': d['fuste'],
+    'codigo': d['codigo'],
+    'x': d['x'],
+    'y': d['y'],
+    'familia': d['familia'],
+    'nome_cientifico': d['nome_cientifico'],
+    'nome_popular': d['nome_popular'],
+    'cap': d['cap'],
+    'hc': d['hc'],
+    'anoHC': d['anoHC'],
+    'ht': d['ht'],
+    'anoHT': d['anoHT'],
+    'formaFuste': d['formaFuste'],
+    'posiSoc': d['posiSoc'],
+    'fitossanidade': d['fitossanidade'],
+    'posiCopa': d['posiCopa'],
+    'formaCopa': d['formaCopa'],
+    'dataIngresso': d['anoIngresso'],
+    'infoMorte': d['infoMorta'],
+    'dataMorte': d['anoMorta'],
+    'observation': d['observacoes'],
+  };
+
   Map<String, dynamic>? _extrairDadosLinha(
       List<dynamic> linha,
       int numeroLinha,
-      Map<int, int> colunasCap) {
-
+      Map<int, int> colunasCap, {
+        required VoidCallback onCapInvalido, // OPT #5
+      }) {
     try {
       final bloco = int.tryParse(linha[0].toString()) ?? 1;
       final parcela = int.tryParse(linha[1].toString()) ?? 1;
@@ -179,7 +302,6 @@ class ImportService {
       final nomeCientifico = linha[9].toString().trim();
       final nomePopular = linha[10].toString().trim();
 
-      // Extrair todos os CAPs detectados
       final capsPorAno = <int, double>{};
       for (final entry in colunasCap.entries) {
         final ano = entry.key;
@@ -192,37 +314,32 @@ class ImportService {
           if (cap != null && cap > 0) {
             capsPorAno[ano] = cap;
           } else {
-            _adicionarLog('AVISO Linha $numeroLinha: CAP inválido para ano $ano (valor: $capValue)');
+            onCapInvalido(); // OPT #5: incrementa contador em vez de logar por linha
           }
         }
       }
 
-      final hc = double.tryParse(linha[linha.length-13].toString()) ?? null;
-      final anoHC = int.tryParse(linha[linha.length-12].toString()) ?? null;
-
-      final ht = double.tryParse(linha[linha.length-11].toString()) ?? null;
-      final anoHT = int.tryParse(linha[linha.length-10].toString()) ?? null;
-
-      final formaFuste = int.tryParse(linha[linha.length-9].toString()) ?? 0;
-      final posiSoc = int.tryParse(linha[linha.length-8].toString()) ?? 0;
-      final fitossanidade = int.tryParse(linha[linha.length-7].toString()) ?? 0;
-      final posiCopa = int.tryParse(linha[linha.length-6].toString()) ?? 0;
-      final formaCopa = int.tryParse(linha[linha.length-5].toString()) ?? 0;
-
-      final anoIngresso = int.tryParse(linha[linha.length-4].toString()) ?? null;
-      final infoMorta = int.tryParse(linha[linha.length-3].toString()) ?? null;
-      final anoMorta = int.tryParse(linha[linha.length-2].toString()) ?? null;
-      final observacoes = linha[linha.length-1].toString().trim();
+      final hc = double.tryParse(linha[linha.length - 13].toString());
+      final anoHC = int.tryParse(linha[linha.length - 12].toString());
+      final ht = double.tryParse(linha[linha.length - 11].toString());
+      final anoHT = int.tryParse(linha[linha.length - 10].toString());
+      final formaFuste = int.tryParse(linha[linha.length - 9].toString()) ?? 0;
+      final posiSoc = int.tryParse(linha[linha.length - 8].toString()) ?? 0;
+      final fitossanidade = int.tryParse(linha[linha.length - 7].toString()) ?? 0;
+      final posiCopa = int.tryParse(linha[linha.length - 6].toString()) ?? 0;
+      final formaCopa = int.tryParse(linha[linha.length - 5].toString()) ?? 0;
+      final anoIngresso = int.tryParse(linha[linha.length - 4].toString());
+      final infoMorta = int.tryParse(linha[linha.length - 3].toString());
+      final anoMorta = int.tryParse(linha[linha.length - 2].toString());
+      final observacoes = linha[linha.length - 1].toString().trim();
 
       if (capsPorAno.isEmpty) {
         _adicionarLog('ERRO Linha $numeroLinha: Nenhum CAP válido encontrado');
         return null;
       }
 
-      // Usar o CAP mais recente (maior ano) para calcular DAP da árvore atual
       final anoMaisRecente = capsPorAno.keys.reduce((a, b) => a > b ? a : b);
-      final capMaisRecente = capsPorAno[anoMaisRecente]!;
-      final cap = capMaisRecente;
+      final cap = capsPorAno[anoMaisRecente]!;
 
       return {
         'bloco': bloco,
@@ -258,121 +375,40 @@ class ImportService {
     }
   }
 
-  Future<Map<String, dynamic>> _processarArvoreNoBanco(
-      Database db, Map<String, dynamic> dados, ImportacaoConfig config) async {
+  /// OPT #2: versão com cache para evitar SELECT repetido de parcelas já vistas.
+  Future<int> _obterOuCriarParcelaComCache(
+      DatabaseExecutor db,
+      Map<String, dynamic> dados,
+      int inventarioId,
+      Map<String, int> cache,
+      ) async {
+    final chave =
+        '$inventarioId-${dados['bloco']}-${dados['parcela']}-${dados['faixa']}';
 
-    // Buscar ou criar parcela
-    final parcelaId = await _obterOuCriarParcela(db, dados, config.inventarioId);
+    if (cache.containsKey(chave)) return cache[chave]!;
 
-    // Verificar se árvore já existe
-    final arvoreExistente = await db.rawQuery('''
-    SELECT id FROM arvores 
-      WHERE parcela_id = ? AND numero_arvore = ? AND codigo = ? AND numero_fuste = ?
-      ''', [parcelaId, dados['arvore'], dados['codigo'], dados['fuste']]);
-
-    int arvoreId;
-    bool novaArvore = false;
-
-    if (arvoreExistente.isNotEmpty) {
-      arvoreId = arvoreExistente.first['id'] as int;
-
-      // FIX Bug 2: usar os nomes de coluna corretos do banco (dataIngresso, infoMorte, dataMorte, observation)
-      // e as chaves corretas do mapa dados
-      await db.update('arvores', {
-        'numero_fuste': dados['fuste'],
-        'codigo': dados['codigo'],
-        'x': dados['x'],
-        'y': dados['y'],
-        'familia': dados['familia'],
-        'nome_cientifico': dados['nome_cientifico'],
-        'nome_popular': dados['nome_popular'],
-        'cap': dados['cap'],
-        'hc': dados['hc'],
-        'anoHC': dados['anoHC'],
-        'ht': dados['ht'],
-        'anoHT': dados['anoHT'],
-        'formaFuste': dados['formaFuste'],
-        'posiSoc': dados['posiSoc'],
-        'fitossanidade': dados['fitossanidade'],
-        'posiCopa': dados['posiCopa'],
-        'formaCopa': dados['formaCopa'],
-        'dataIngresso': dados['anoIngresso'],
-        'infoMorte': dados['infoMorta'],
-        'dataMorte': dados['anoMorta'],
-        'observation': dados['observacoes'],
-      }, where: 'id = ?', whereArgs: [arvoreId]);
-    } else {
-      // FIX Bug 1: usar os nomes de coluna corretos do banco e as chaves corretas do mapa dados
-      arvoreId = await db.insert('arvores', {
-        'parcela_id': parcelaId,
-        'numero_arvore': dados['arvore'],
-        'numero_fuste': dados['fuste'],
-        'codigo': dados['codigo'],
-        'x': dados['x'],
-        'y': dados['y'],
-        'familia': dados['familia'],
-        'nome_cientifico': dados['nome_cientifico'],
-        'nome_popular': dados['nome_popular'],
-        'cap': dados['cap'],
-        'hc': dados['hc'],
-        'anoHC': dados['anoHC'],
-        'ht': dados['ht'],
-        'anoHT': dados['anoHT'],
-        'formaFuste': dados['formaFuste'],
-        'posiSoc': dados['posiSoc'],
-        'fitossanidade': dados['fitossanidade'],
-        'posiCopa': dados['posiCopa'],
-        'formaCopa': dados['formaCopa'],
-        'dataIngresso': dados['anoIngresso'],   // coluna DB: dataIngresso | chave dados: anoIngresso
-        'infoMorte': dados['infoMorta'],        // coluna DB: infoMorte    | chave dados: infoMorta
-        'dataMorte': dados['anoMorta'],         // coluna DB: dataMorte    | chave dados: anoMorta
-        'observation': dados['observacoes'],    // coluna DB: observation  | chave dados: observacoes
-      });
-      novaArvore = true;
-    }
-
-    // Salvar todos os CAPs no histórico
-    final capsPorAno = dados['caps_por_ano'] as Map<int, double>;
-    for (final entry in capsPorAno.entries) {
-      final ano = entry.key;
-      final cap = entry.value;
-
-      await db.insert(
-        'arvores_cap_historico',
-        {
-          'arvore_id': arvoreId,
-          'ano': ano,
-          'cap': cap,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-
-    return {'novo': novaArvore};
-  }
-
-  Future<int> _obterOuCriarParcela(
-      Database db, Map<String, dynamic> dados, int inventarioId) async {
-
-    // Buscar parcela existente
     final parcelaExistente = await db.rawQuery('''
-      SELECT id FROM parcelas 
+      SELECT id FROM parcelas
       WHERE inventario_id = ? AND bloco = ? AND parcela = ? AND faixa = ?
     ''', [inventarioId, dados['bloco'], dados['parcela'], dados['faixa']]);
 
+    final int id;
     if (parcelaExistente.isNotEmpty) {
-      return parcelaExistente.first['id'] as int;
+      id = parcelaExistente.first['id'] as int;
+    } else {
+      id = await db.insert('parcelas', {
+        'inventario_id': inventarioId,
+        'bloco': dados['bloco'],
+        'parcela': dados['parcela'],
+        'faixa': dados['faixa'],
+        'concluida': 0,
+      });
     }
 
-    // Criar nova parcela
-    final novaParcelaId = await db.insert('parcelas', {
-      'inventario_id': inventarioId,
-      'bloco': dados['bloco'],
-      'parcela': dados['parcela'],
-      'faixa': dados['faixa'],
-      'concluida': 0,
-    });
-
-    return novaParcelaId;
+    cache[chave] = id;
+    return id;
   }
 }
+
+// Alias para facilitar uso do callback sem importar flutter/foundation
+typedef VoidCallback = void Function();

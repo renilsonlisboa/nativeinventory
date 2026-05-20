@@ -988,7 +988,18 @@ class DatabaseHelper {
     return result.map((row) => row['nome_cientifico'] as String).toList();
   }
 
-  /// Retorna a família correspondente ao nome científico (exato)
+  Future<double?> getCapAnterior(int arvoreId, int anoAtual) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT cap FROM arvores_cap_historico WHERE arvore_id = ? AND ano < ? ORDER BY ano DESC LIMIT 1',
+      [arvoreId, anoAtual],
+    );
+    if (result.isNotEmpty) {
+      return (result.first['cap'] as num).toDouble();
+    }
+    return null;
+  }
+
   Future<String?> getFamiliaByNomeCientifico(String nomeCientifico) async {
     final db = await database;
     final result = await db.rawQuery('''

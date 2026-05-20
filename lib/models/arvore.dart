@@ -95,9 +95,9 @@ class Arvore {
       nomePopular: map['nome_popular'],
       cap: map['cap'],
       hc: map['hc'],
-      anoHC: (map['anoHC'] as num?)?.toInt(),   // ← conversão
+      anoHC: (map['anoHC'] as num?)?.toInt(),
       ht: map['ht'],
-      anoHT: (map['anoHT'] as num?)?.toInt(),   // ← conversão
+      anoHT: (map['anoHT'] as num?)?.toInt(),
       formaFuste: map['formaFuste'],
       posiSoc: map['posiSoc'],
       fitossanidade: map['fitossanidade'],
@@ -111,7 +111,7 @@ class Arvore {
   }
 
   // Método para converter DAP para CAP (se necessário)
-  double get dap => cap / 3.14159; // CAP para DAP aproximado
+  double get dap => cap / 3.14159;
 
   // Método para obter medições formatadas por ano
   Map<String, double> getMedicoesPorAno(int ano) {
