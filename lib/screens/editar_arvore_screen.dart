@@ -51,6 +51,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
 
   double? _capAnterior;
   bool _capMenorQueAnterior = false;
+  bool _capDiferencaGrande = false;
 
   List<String> _familiasFiltradas = [];
   List<String> _especiesFiltradas = [];
@@ -260,15 +261,19 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       if (_selectedinfoMorta == 1) {
         _dapAbaixoMinimo = false;
         _capMenorQueAnterior = false;
+        _capDiferencaGrande = false;
         return;
       }
 
       _dapAbaixoMinimo = dap < _dapMinimo && dap > 0;
 
-      if (_capAnterior != null) {
-        _capMenorQueAnterior = dap < _capAnterior! && dap > 0;
+      if (_capAnterior != null && dap > 0) {
+        _capMenorQueAnterior = dap < _capAnterior!;
+        final diferenca = (dap - _capAnterior!).abs();
+        _capDiferencaGrande = diferenca > 8.0;
       } else {
         _capMenorQueAnterior = false;
+        _capDiferencaGrande = false;
       }
     });
   }
@@ -337,6 +342,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           if (confirmar != true) return;
         }
 
+        if (_selectedinfoMorta != 1 && _capDiferencaGrande) {
+          final bool? confirmar = await _mostrarAvisoCapDiferencaGrande(dapInserido);
+          if (confirmar != true) return;
+        }
+
         // ... resto permanece igual
         final arvore = Arvore(
           id: widget.arvore?.id ?? 0,
@@ -393,6 +403,62 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         backgroundColor: Colors.red.shade700,
         duration: const Duration(seconds: 3),
       ),
+    );
+  }
+
+  Future<bool?> _mostrarAvisoCapDiferencaGrande(double capInserido) async {
+    final diferenca = (capInserido - _capAnterior!).abs();
+    final tipo = capInserido > _capAnterior! ? 'maior' : 'menor';
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Variação Atípica de CAP',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'O CAP informado (${capInserido.toStringAsFixed(1)} cm) é $tipo que o CAP do ano anterior (${_capAnterior!.toStringAsFixed(1)} cm) em ${diferenca.toStringAsFixed(1)} cm.',
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                'Uma variação superior a 8 cm em relação ao ano anterior pode indicar erro de medição.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+              const SizedBox(height: 8),
+              const Text('Deseja salvar mesmo assim?'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Corrigir CAP'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Salvar Mesmo Assim'),
+            ),
+          ],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        );
+      },
     );
   }
 
@@ -726,6 +792,40 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
 
                   const SizedBox(height: 16),
 
+                  // Card de aviso de variação atípica de CAP (> 8 cm em relação ao ano anterior)
+                  if (_selectedinfoMorta != 1 && _capAnterior != null && _capDiferencaGrande)
+                    Card(
+                      elevation: 4,
+                      shadowColor: Colors.black26,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      color: Colors.red.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.red.shade700,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Variação atípica: CAP anterior ${_capAnterior!.toStringAsFixed(1)} cm → atual ${_dapController.text} cm '
+                                    '(diferença de ${(( double.tryParse(_dapController.text) ?? 0.0) - _capAnterior!).abs().toStringAsFixed(1)} cm)',
+                                style: TextStyle(
+                                  color: Colors.red.shade800,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(height: 16),
+
                   Card(
                     elevation: 4,
                     shadowColor: Colors.black26,
@@ -929,8 +1029,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                                   child: Text('1 - Fuste Tortuoso')),
                               DropdownMenuItem(
                                   value: 2,
-                                  child: Text(
-                                      '2 - Fuste Levemente Torturoso')),
+                                  child: Text('2 - Fuste Levemente Torturoso')),
                               DropdownMenuItem(
                                   value: 3, child: Text('3 - Fuste Reto')),
                             ],
