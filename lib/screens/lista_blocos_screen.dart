@@ -71,6 +71,93 @@ class _ListaBlocosScreenState extends State<ListaBlocosScreen> {
     ).then((_) => _carregarBlocos());
   }
 
+  Future<void> _marcarBlocoConcluido(_BlocoInfo bloco, bool concluir) async {
+    final acao = concluir ? 'concluir' : 'reabrir';
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(
+              concluir ? Icons.check_circle_outline : Icons.undo,
+              color: concluir ? Colors.green.shade700 : Colors.orange.shade700,
+            ),
+            const SizedBox(width: 8),
+            Text(concluir ? 'Concluir bloco' : 'Reabrir bloco'),
+          ],
+        ),
+        content: Text(
+          concluir
+              ? 'Deseja marcar todas as ${bloco.totalParcelas} parcelas do Bloco ${bloco.numero} como concluídas?'
+              : 'Deseja reabrir todas as parcelas do Bloco ${bloco.numero}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor:
+              concluir ? Colors.green.shade700 : Colors.orange.shade700,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(concluir ? 'Concluir' : 'Reabrir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      final parcelas = await DatabaseHelper()
+          .getParcelasByInventario(widget.inventarioId);
+      final parcelasDoBloco =
+      parcelas.where((p) => p.bloco == bloco.numero).toList();
+
+      for (final parcela in parcelasDoBloco) {
+        final atualizada = parcela.copyWith(concluida: concluir);
+        await DatabaseHelper().updateParcela(atualizada);
+      }
+
+      await _carregarBlocos();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              concluir
+                  ? 'Bloco ${bloco.numero} marcado como concluído!'
+                  : 'Bloco ${bloco.numero} reaberto!',
+            ),
+            backgroundColor:
+            concluir ? Colors.green.shade700 : Colors.orange.shade700,
+            behavior: SnackBarBehavior.floating,
+            shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao $acao o bloco: $e'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+            shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -226,6 +313,27 @@ class _ListaBlocosScreenState extends State<ListaBlocosScreen> {
                   ],
                 ),
               ),
+              // Botão de concluir / reabrir
+              IconButton(
+                tooltip: progresso >= 1.0 ? 'Reabrir bloco' : 'Concluir bloco',
+                style: IconButton.styleFrom(
+                  backgroundColor: progresso >= 1.0
+                      ? Colors.green.shade100
+                      : Colors.grey.shade100,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: Icon(
+                  progresso >= 1.0 ? Icons.check_circle : Icons.check_circle_outline,
+                  color: progresso >= 1.0
+                      ? Colors.green.shade700
+                      : Colors.grey.shade500,
+                  size: 26,
+                ),
+                onPressed: () =>
+                    _marcarBlocoConcluido(bloco, progresso < 1.0),
+              ),
+              const SizedBox(width: 4),
               Icon(Icons.chevron_right, color: Colors.grey.shade400),
             ],
           ),
