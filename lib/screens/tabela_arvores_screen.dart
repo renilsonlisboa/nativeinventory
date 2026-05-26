@@ -32,6 +32,11 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
   bool _isSearching = false;
   Timer? _debounceTimer;
 
+  // Sincronização de scroll horizontal entre cabeçalho e dados
+  final ScrollController _headerHorizontalController = ScrollController();
+  final ScrollController _dataHorizontalController = ScrollController();
+  bool _isSyncingScroll = false;
+
   // ✅ Controle de exibição: vivas (false) ou mortas (true)
   bool _mostrarMortas = false;
 
@@ -43,12 +48,36 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
     super.initState();
     _carregarArvoresEHistoricos();
     _searchController.addListener(_onSearchChanged);
+
+    // Sincroniza scroll horizontal: cabeçalho → dados
+    _headerHorizontalController.addListener(() {
+      if (_isSyncingScroll) return;
+      if (_dataHorizontalController.hasClients) {
+        _isSyncingScroll = true;
+        _dataHorizontalController
+            .jumpTo(_headerHorizontalController.offset);
+        _isSyncingScroll = false;
+      }
+    });
+
+    // Sincroniza scroll horizontal: dados → cabeçalho
+    _dataHorizontalController.addListener(() {
+      if (_isSyncingScroll) return;
+      if (_headerHorizontalController.hasClients) {
+        _isSyncingScroll = true;
+        _headerHorizontalController
+            .jumpTo(_dataHorizontalController.offset);
+        _isSyncingScroll = false;
+      }
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _debounceTimer?.cancel();
+    _headerHorizontalController.dispose();
+    _dataHorizontalController.dispose();
     super.dispose();
   }
 
@@ -125,7 +154,8 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
 
     // Garante que o ano do inventário sempre aparece como coluna,
     // mesmo que ainda não haja nenhum CAP registrado para ele.
-    final inventario = await DatabaseHelper().getInventario(widget.inventarioId);
+    final inventario =
+    await DatabaseHelper().getInventario(widget.inventarioId);
     if (inventario != null) {
       _anoAtual = inventario.ano;
       todosAnos.add(inventario.ano);
@@ -427,6 +457,111 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
     );
   }
 
+  /// Constrói a tabela com cabeçalho fixo e dados roláveis verticalmente
+  Widget _buildTabela(List<Arvore> arvores) {
+    return Card(
+      margin: const EdgeInsets.all(8),
+      elevation: 4,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            // ── CABEÇALHO FIXO ──────────────────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Célula fixa do cabeçalho (coluna "Arv.")
+                Container(
+                  width: 80,
+                  height: _rowHeight,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    color: Colors.blue.shade50,
+                  ),
+                  child: const Text(
+                    'Arv.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                // Cabeçalhos roláveis horizontalmente (sincronizado com os dados)
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    controller: _headerHorizontalController,
+                    physics: const ClampingScrollPhysics(),
+                    child: Row(
+                      children: _buildScrollableHeaders(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // ── DADOS ROLÁVEIS VERTICAL E HORIZONTALMENTE ───────────
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.vertical,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Coluna fixa (número da árvore)
+                    Column(
+                      children: arvores.map((arvore) {
+                        return GestureDetector(
+                          onTap: () => _editarArvore(arvore),
+                          child: Container(
+                            width: 80,
+                            height: _rowHeight,
+                            alignment: Alignment.center,
+                            padding:
+                            const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              border:
+                              Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Text(
+                              arvore.numeroArvore.toString(),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+
+                    // Colunas de dados roláveis horizontalmente (sincronizado com cabeçalho)
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        controller: _dataHorizontalController,
+                        physics: const ClampingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: arvores.map((arvore) {
+                            return Row(
+                              children:
+                              _buildScrollableCellsForArvore(arvore),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -568,7 +703,8 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Icon(Icons.search_off, size: 64, color: Colors.grey),
+                            Icon(Icons.search_off,
+                                size: 64, color: Colors.grey),
                             SizedBox(height: 16),
                             Text(
                               'Nenhuma árvore encontrada',
@@ -580,95 +716,7 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
                       );
                     }
 
-                    return Card(
-                      margin: const EdgeInsets.all(8),
-                      elevation: 4,
-                      shadowColor: Colors.black26,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.vertical,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // --- COLUNA FIXA (esquerda) ---
-                              Column(
-                                children: [
-                                  // Cabeçalho da coluna fixa
-                                  Container(
-                                    width: 80,
-                                    height: _rowHeight,
-                                    alignment: Alignment.center,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 4),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                          color: Colors.grey.shade300),
-                                      color: Colors.blue.shade50,
-                                    ),
-                                    child: const Text(
-                                      'Arv.',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                  // Células da coluna fixa (número da árvore)
-                                  ...arvores.map((arvore) {
-                                    return GestureDetector(
-                                      onTap: () => _editarArvore(arvore),
-                                      child: Container(
-                                        width: 80,
-                                        height: _rowHeight,
-                                        alignment: Alignment.center,
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 4),
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                              color: Colors.grey.shade300),
-                                        ),
-                                        child: Text(
-                                          arvore.numeroArvore.toString(),
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ],
-                              ),
-
-                              // --- COLUNAS ROLÁVEIS (direita) ---
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                    children: [
-                                      // Linha de cabeçalhos das colunas roláveis
-                                      Row(
-                                        children: _buildScrollableHeaders(),
-                                      ),
-                                      // Linhas de dados
-                                      ...arvores.map((arvore) {
-                                        return Row(
-                                          children:
-                                          _buildScrollableCellsForArvore(
-                                              arvore),
-                                        );
-                                      }).toList(),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
+                    return _buildTabela(arvores);
                   }
                 },
               ),
