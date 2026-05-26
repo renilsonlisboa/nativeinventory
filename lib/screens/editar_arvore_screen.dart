@@ -79,8 +79,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       _familiaSelecionada = widget.arvore!.familia;
       _nomePopularController.text = widget.arvore!.nomePopular.toString();
 
-      // ✅ FIX 1: Inicializa o campo CAP com o valor da árvore
-      _dapController.text = '';
+      _dapController.text = widget.arvore!.cap.toString();
 
       _hcController.text = widget.arvore!.hc.toString();
       _htController.text = widget.arvore!.ht.toString();
@@ -100,8 +99,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     _selectedinfoMorta = widget.arvore?.infoMorte ?? 0;
     _selecteddataMorta = widget.arvore?.dataMorte;
 
-    // ✅ FIX 4: _carregarDadosInventario já chama _carregarCapAnterior internamente
-    // e só depois chama _validarDAP — tudo na ordem certa
     _carregarDadosInventario();
   }
 
@@ -216,7 +213,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     }
   }
 
-  // ✅ FIX 4: Centraliza o carregamento — inventário primeiro, depois CAP anterior
   Future<void> _carregarDadosInventario() async {
     final inventario =
     await DatabaseHelper().getInventario(widget.inventarioId);
@@ -231,16 +227,13 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
       });
     }
 
-    // ✅ FIX 4: Só chama _carregarCapAnterior APÓS _anoInventario estar definido
     if (widget.arvore != null) {
       await _carregarCapAnterior();
     } else {
-      // Para árvores novas, valida com o mínimo já carregado
       _validarDAP(_dapController.text);
     }
   }
 
-  // ✅ FIX 2 + 3: Após setar _capAnterior, chama _validarDAP para forçar a UI atualizar
   Future<void> _carregarCapAnterior() async {
     final dbHelper = DatabaseHelper();
     final capAnterior =
@@ -331,7 +324,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         final dapInserido = _parseDoubleSafe(_dapController.text);
         final cap = dapInserido;
 
-        // ✅ Só mostra avisos se a árvore NÃO está morta
         if (_selectedinfoMorta != 1 && dapInserido < _dapMinimo) {
           final bool? confirmar = await _mostrarAvisoDapMinimo(dapInserido);
           if (confirmar != true) return;
@@ -347,7 +339,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
           if (confirmar != true) return;
         }
 
-        // ... resto permanece igual
         final arvore = Arvore(
           id: widget.arvore?.id ?? 0,
           parcelaId: widget.parcelaId,
@@ -877,7 +868,8 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                               Border.all(color: Colors.grey.shade300),
                             ),
                             child: DropdownButtonFormField<int>(
-                              value: _selectedCodigo,
+                              // Garante que o valor existe entre os itens válidos (0–4)
+                              value: [0, 1, 2, 3, 4].contains(_selectedCodigo) ? _selectedCodigo : null,
                               decoration: InputDecoration(
                                 labelText: 'Código / Tipo',
                                 labelStyle: TextStyle(
@@ -1022,16 +1014,14 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             label: 'Forma do Fuste',
                             items: const [
                               DropdownMenuItem(
-                                  value: 0,
-                                  child: Text('0 - Não Atribuido')),
-                              DropdownMenuItem(
                                   value: 1,
                                   child: Text('1 - Fuste Tortuoso')),
                               DropdownMenuItem(
                                   value: 2,
                                   child: Text('2 - Fuste Levemente Torturoso')),
                               DropdownMenuItem(
-                                  value: 3, child: Text('3 - Fuste Reto')),
+                                  value: 3,
+                                  child: Text('3 - Fuste Reto')),
                             ],
                             onChanged: (v) =>
                                 setState(() => _selectedFormaFuste = v),
@@ -1042,9 +1032,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             value: _selectedPosiSoc,
                             label: 'Estrato',
                             items: const [
-                              DropdownMenuItem(
-                                  value: 0,
-                                  child: Text('0 - Não Atribuido')),
                               DropdownMenuItem(
                                   value: 1,
                                   child: Text('1 - Estrato Inferior')),
@@ -1064,9 +1051,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             value: _selectedFito,
                             label: 'Fitossanidade',
                             items: const [
-                              DropdownMenuItem(
-                                  value: 0,
-                                  child: Text('0 - Não Atribuido')),
                               DropdownMenuItem(
                                   value: 1,
                                   child:
@@ -1090,24 +1074,17 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             label: 'Posição da Copa',
                             items: const [
                               DropdownMenuItem(
-                                  value: 0,
-                                  child: Text('0 - Não Atribuido')),
-                              DropdownMenuItem(
                                   value: 1,
-                                  child: Text(
-                                      '1 - Sem Iluminação Direta')),
+                                  child: Text('1 - Sem Iluminação Direta')),
                               DropdownMenuItem(
                                   value: 2,
-                                  child: Text(
-                                      '2 - Alguma Iluminação Natural')),
+                                  child: Text('2 - Alguma Iluminação Natural')),
                               DropdownMenuItem(
                                   value: 3,
-                                  child: Text(
-                                      '3 - Iluminação Superior Parcial')),
+                                  child: Text('3 - Iluminação Superior Parcial')),
                               DropdownMenuItem(
                                   value: 4,
-                                  child: Text(
-                                      '4 - Iluminação Superior Completa')),
+                                  child: Text('4 - Iluminação Superior Completa')),
                               DropdownMenuItem(
                                   value: 5,
                                   child: Text('5 - Emergente')),
@@ -1121,9 +1098,6 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
                             value: _selectedFormaCopa,
                             label: 'Forma da Copa',
                             items: const [
-                              DropdownMenuItem(
-                                  value: 0,
-                                  child: Text('0 - Não Atribuido')),
                               DropdownMenuItem(
                                   value: 1,
                                   child: Text('1 - Forma Intolerável')),
@@ -1196,6 +1170,11 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
     required List<DropdownMenuItem<int>> items,
     required void Function(int?) onChanged,
   }) {
+    // Garante que o valor atual existe na lista de itens.
+    // Se não existir (dados legados ou null inválido), usa null para evitar
+    // a assertion do DropdownButtonFormField.
+    final safeValue = items.any((item) => item.value == value) ? value : null;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.9),
@@ -1203,7 +1182,7 @@ class _EditarArvoreScreenState extends State<EditarArvoreScreen> {
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: DropdownButtonFormField<int>(
-        value: value,
+        value: safeValue,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(color: Colors.grey.shade700),

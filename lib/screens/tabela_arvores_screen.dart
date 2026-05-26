@@ -123,10 +123,15 @@ class _TabelaArvoresScreenState extends State<TabelaArvoresScreen> {
       }
     }
 
-    _anosUnicos = todosAnos.toList()..sort();
-    if (_anosUnicos.isNotEmpty) {
-      _anoAtual = _anosUnicos.last;
+    // Garante que o ano do inventário sempre aparece como coluna,
+    // mesmo que ainda não haja nenhum CAP registrado para ele.
+    final inventario = await DatabaseHelper().getInventario(widget.inventarioId);
+    if (inventario != null) {
+      _anoAtual = inventario.ano;
+      todosAnos.add(inventario.ano);
     }
+
+    _anosUnicos = todosAnos.toList()..sort();
 
     return arvores;
   }
